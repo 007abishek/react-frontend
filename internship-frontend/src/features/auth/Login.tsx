@@ -4,6 +4,7 @@ import {
   signInWithPopup,
   signInAnonymously,
   fetchSignInMethodsForEmail,
+  signOut,
 } from "firebase/auth";
 import {
   auth,
@@ -84,18 +85,31 @@ export default function Login() {
     navigate("/");
   };
 
-  /* ---------------- LOGIN HANDLERS ---------------- */
+  /* ---------------- LOGIN WITH EMAIL (REAL WEBSITE LOGIC) ---------------- */
 
   const loginEmail = async () => {
     if (!validate()) return;
 
     try {
       setLoading(true);
+
       const res = await signInWithEmailAndPassword(
         auth,
         email,
         password
       );
+
+      // 🔐 IMPORTANT: reload + verify email
+      await res.user.reload();
+
+      if (!res.user.emailVerified) {
+        await signOut(auth);
+        setError(
+          "Please verify your email before logging in."
+        );
+        return;
+      }
+
       handleSuccess(res.user, "password");
     } catch (err: any) {
       setError(getAuthErrorMessage(err.code));
@@ -103,6 +117,8 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  /* ---------------- GOOGLE LOGIN ---------------- */
 
   const loginGoogle = async () => {
     try {
@@ -137,6 +153,8 @@ export default function Login() {
     }
   };
 
+  /* ---------------- GITHUB LOGIN ---------------- */
+
   const loginGithub = async () => {
     try {
       setLoading(true);
@@ -169,6 +187,8 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  /* ---------------- GUEST LOGIN ---------------- */
 
   const loginGuest = async () => {
     try {

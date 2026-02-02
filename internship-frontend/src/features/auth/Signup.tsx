@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signOut,
+} from "firebase/auth";
 import { auth } from "../../firebase/config";
 import { useNavigate, Link } from "react-router-dom";
 import type { FirebaseError } from "firebase/app";
@@ -8,6 +12,7 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
@@ -54,15 +59,36 @@ export default function Signup() {
     }
   };
 
-  /* ---------------- SIGNUP ---------------- */
+  /* ---------------- SIGNUP (REAL WEBSITE FLOW) ---------------- */
 
   const signup = async () => {
     if (!validate()) return;
 
     try {
       setLoading(true);
-      await createUserWithEmailAndPassword(auth, email, password);
-      navigate("/login");
+
+      // 1️⃣ Create user
+      const cred = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+      // 2️⃣ Send verification email
+      await sendEmailVerification(cred.user);
+
+      // 3️⃣ Logout unverified user (IMPORTANT)
+      await signOut(auth);
+
+      // 4️⃣ Show success message
+      setSuccess(
+        "Verification email sent. Please verify your email before logging in."
+      );
+
+      // 5️⃣ Redirect to login after short delay
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
     } catch (err) {
       const firebaseError = err as FirebaseError;
       setError(getErrorMessage(firebaseError.code));
@@ -86,6 +112,12 @@ export default function Signup() {
             className="text-red-600 text-sm mb-3 text-center"
           >
             {error}
+          </p>
+        )}
+
+        {success && (
+          <p className="text-green-600 text-sm mb-3 text-center">
+            {success}
           </p>
         )}
 
