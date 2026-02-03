@@ -6,7 +6,7 @@ export default function Home() {
     <AppLayout>
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
-      {/* 🔴 TEMP SENTRY TEST BUTTON */}
+      {/*  TEMP SENTRY TEST BUTTON */}
       <button
         className="mb-6 rounded bg-red-500 px-4 py-2 text-white"
         onClick={() => {

@@ -1,4 +1,4 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { createApi } from "@reduxjs/toolkit/query/react";
 import type {
   GithubUser,
   GithubRepo,
@@ -6,12 +6,16 @@ import type {
   GithubRepoSearchResponse,
 } from "./types";
 
+import { createBaseQueryWithSentry } from "../../utils/baseQueryWithSentry";
+
 export const githubApi = createApi({
   reducerPath: "githubApi",
 
-  baseQuery: fetchBaseQuery({
-    baseUrl: "https://api.github.com/",
-  }),
+  // ✅ Sentry-enabled baseQuery with performance monitoring
+  baseQuery: createBaseQueryWithSentry(
+    "https://api.github.com/",
+    "github" // 👈 enables performance tracking + error filtering
+  ),
 
   endpoints: (builder) => ({
     // 👤 Get single user profile
