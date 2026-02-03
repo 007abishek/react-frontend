@@ -5,15 +5,39 @@ import { createBaseQueryWithSentry } from "../../utils/baseQueryWithSentry";
 export const productApi = createApi({
   reducerPath: "productApi",
 
-  // ✅ Sentry-enabled baseQuery (error monitoring only)
   baseQuery: createBaseQueryWithSentry(
-    "https://fakestoreapi.com/",
+    "https://dummyjson.com",
     "product"
   ),
 
   endpoints: (builder) => ({
     getProducts: builder.query<Product[], void>({
       query: () => "products",
+
+      transformResponse: (response: {
+        products: Product[];
+      }) => {
+        // ✅ Electronics-like categories
+        const electronicsCategories = [
+          "smartphones",
+          "laptops",
+          "lighting",
+          "automotive",
+          "motorcycle",
+          "home-decoration",
+        ];
+
+        const filtered = response.products.filter(
+          (p) =>
+            p.category &&
+            electronicsCategories.includes(p.category)
+        );
+
+        // ✅ SAFETY FALLBACK (IMPORTANT)
+        return filtered.length > 0
+          ? filtered
+          : response.products;
+      },
     }),
   }),
 });

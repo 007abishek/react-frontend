@@ -60,35 +60,78 @@ export default function TodosPage() {
 
   return (
     <AppLayout>
-      <h1 className="text-2xl font-bold mb-6">Todos</h1>
-
-      {/* Input */}
-      <div className="flex gap-3 mb-4">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          className="border px-3 py-2 rounded w-full dark:bg-gray-800"
-          placeholder={
-            isGuest
-              ? "Guest users can add up to 3 todos"
-              : "Enter a todo"
-          }
-        />
-        <button
-          type="button"
-          onClick={handleAdd}
-          className="bg-blue-600 text-white px-4 rounded"
-        >
-          Add
-        </button>
+      {/* ===== Header ===== */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">
+          Todos
+        </h1>
+        <p className="mt-1 text-slate-500">
+          Keep track of what you need to do
+        </p>
       </div>
 
-      {/* Todo list */}
-      <ul className="space-y-2 bg-zinc-900">
+      {/* ===== Input Card ===== */}
+      <div className="mb-6 rounded-xl bg-white dark:bg-zinc-900 shadow-sm p-4">
+        <div className="flex gap-3">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            className="
+              flex-1
+              rounded-md
+              border border-slate-300 dark:border-zinc-700
+              bg-white dark:bg-zinc-800
+              px-3 py-2
+              text-slate-900 dark:text-white
+              placeholder-slate-400
+              focus:outline-none
+              focus:ring-2 focus:ring-blue-500
+            "
+            placeholder={
+              isGuest
+                ? "Guest users can add up to 3 todos"
+                : "What needs to be done?"
+            }
+          />
+
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="
+              rounded-md
+              bg-blue-600
+              px-5 py-2
+              font-medium text-white
+              transition
+              hover:bg-blue-700
+            "
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      {/* ===== Todo List ===== */}
+      <ul className="space-y-3">
+        {todos.length === 0 && (
+          <li className="text-slate-400 text-sm text-center py-6">
+            No todos yet. Add one above 👆
+          </li>
+        )}
+
         {todos.map((todo) => (
           <li
             key={todo.id}
-            className="flex items-center justify-between bg-gray-100 dark:bg-zinc-900 p-3 rounded"
+            className="
+              group
+              flex items-center justify-between
+              rounded-xl
+              bg-white dark:bg-zinc-900
+              p-4
+              shadow-sm
+              transition
+              hover:shadow-md
+            "
           >
             <div className="flex items-center gap-3 flex-1">
               <input
@@ -97,14 +140,18 @@ export default function TodosPage() {
                 onChange={() =>
                   dispatch(toggleTodo(todo.id))
                 }
-                className="h-4 w-4 cursor-pointer accent-blue-600"
+                className="
+                  h-4 w-4
+                  cursor-pointer
+                  accent-blue-600
+                "
               />
 
               <span
                 className={`select-none transition ${
                   todo.completed
-                    ? "line-through text-gray-400 italic"
-                    : "text-black dark:text-white"
+                    ? "line-through text-slate-400 italic"
+                    : "text-slate-900 dark:text-white"
                 }`}
               >
                 {todo.text}
@@ -116,7 +163,14 @@ export default function TodosPage() {
               onClick={() =>
                 dispatch(deleteTodo(todo.id))
               }
-              className="text-red-500 ml-3"
+              className="
+                ml-3
+                text-slate-400
+                transition
+                hover:text-red-500
+                opacity-0 group-hover:opacity-100
+              "
+              aria-label="Delete todo"
             >
               ✕
             </button>

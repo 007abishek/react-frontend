@@ -11,7 +11,7 @@ import App from "./App";
 
 import "./index.css";
 
-//  Firebase auth → Redux
+// Firebase auth → Redux
 startAuthListener(store.dispatch);
 
 // Initialize Sentry BEFORE rendering React
@@ -30,14 +30,16 @@ Sentry.init({
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <Provider store={store}>
-    <ThemeProvider>
-      <BrowserRouter>
-        {/*  Error Boundary */}
-        <Sentry.ErrorBoundary fallback={<p>Something went wrong 😢</p>}>
-          <App />
-        </Sentry.ErrorBoundary>
-      </BrowserRouter>
-    </ThemeProvider>
-  </Provider>
+  <React.StrictMode>
+    <Provider store={store}>
+      <ThemeProvider>
+        <BrowserRouter>
+          {/* Error Boundary */}
+          <Sentry.ErrorBoundary fallback={<p>Something went wrong 😢</p>}>
+            <App />
+          </Sentry.ErrorBoundary>
+        </BrowserRouter>
+      </ThemeProvider>
+    </Provider>
+  </React.StrictMode>
 );

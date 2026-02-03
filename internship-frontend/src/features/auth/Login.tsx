@@ -85,7 +85,7 @@ export default function Login() {
     navigate("/");
   };
 
-  /* ---------------- LOGIN WITH EMAIL (REAL WEBSITE LOGIC) ---------------- */
+  /* ---------------- LOGIN WITH EMAIL ---------------- */
 
   const loginEmail = async () => {
     if (!validate()) return;
@@ -99,14 +99,11 @@ export default function Login() {
         password
       );
 
-      // 🔐 IMPORTANT: reload + verify email
       await res.user.reload();
 
       if (!res.user.emailVerified) {
         await signOut(auth);
-        setError(
-          "Please verify your email before logging in."
-        );
+        setError("Please verify your email before logging in.");
         return;
       }
 
@@ -205,8 +202,25 @@ export default function Login() {
   /* ---------------- UI ---------------- */
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
+    <div
+      className="
+        min-h-screen
+        flex items-center justify-center
+        bg-gradient-to-br
+        from-indigo-50 via-white to-blue-50
+        transition-colors duration-500
+      "
+    >
+      <div
+        className="
+          w-full max-w-md
+          bg-white text-slate-900
+          rounded-2xl
+          shadow-xl
+          p-8
+          animate-[fadeIn_0.5s_ease-out]
+        "
+      >
         <h1 className="text-2xl font-bold text-center mb-6">
           Login
         </h1>
@@ -221,7 +235,19 @@ export default function Login() {
         )}
 
         <input
-          className="w-full border rounded px-3 py-2 mb-3"
+          className="
+            w-full
+            bg-white
+            text-slate-900
+            border border-slate-300
+            rounded-md
+            px-3 py-2
+            mb-3
+            placeholder-slate-400
+            transition
+            focus:outline-none
+            focus:ring-2 focus:ring-blue-500
+          "
           placeholder="Email"
           value={email}
           onChange={(e) => {
@@ -231,9 +257,21 @@ export default function Login() {
         />
 
         <input
-          className="w-full border rounded px-3 py-2 mb-4"
-          placeholder="Password"
           type="password"
+          className="
+            w-full
+            bg-white
+            text-slate-900
+            border border-slate-300
+            rounded-md
+            px-3 py-2
+            mb-4
+            placeholder-slate-400
+            transition
+            focus:outline-none
+            focus:ring-2 focus:ring-blue-500
+          "
+          placeholder="Password"
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
@@ -244,7 +282,15 @@ export default function Login() {
         <button
           onClick={loginEmail}
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded mb-3 disabled:opacity-50"
+          className="
+            w-full
+            bg-blue-600 text-white
+            py-2 rounded-md
+            mb-3
+            transition
+            hover:bg-blue-700
+            disabled:opacity-50
+          "
         >
           {loading ? "Logging in..." : "Login with Email"}
         </button>
@@ -253,14 +299,31 @@ export default function Login() {
           <button
             onClick={loginGoogle}
             disabled={loading}
-            className="flex-1 border py-2 rounded disabled:opacity-50"
+            className="
+              flex-1
+              bg-white text-slate-900
+              border border-slate-300
+              py-2 rounded-md
+              transition
+              hover:bg-slate-50
+              disabled:opacity-50
+            "
           >
             Google
           </button>
+
           <button
             onClick={loginGithub}
             disabled={loading}
-            className="flex-1 border py-2 rounded disabled:opacity-50"
+            className="
+              flex-1
+              bg-white text-slate-900
+              border border-slate-300
+              py-2 rounded-md
+              transition
+              hover:bg-slate-50
+              disabled:opacity-50
+            "
           >
             GitHub
           </button>
@@ -269,14 +332,22 @@ export default function Login() {
         <button
           onClick={loginGuest}
           disabled={loading}
-          className="w-full text-sm text-gray-600 underline mb-4"
+          className="
+            w-full
+            text-sm text-slate-600
+            underline
+            mb-4
+            transition
+            hover:text-slate-800
+            disabled:opacity-50
+          "
         >
           Continue as Guest
         </button>
 
         <p className="text-sm text-center">
           Don’t have an account?{" "}
-          <Link to="/signup" className="text-blue-600">
+          <Link to="/signup" className="text-blue-600 hover:underline">
             Sign up
           </Link>
         </p>

@@ -14,14 +14,16 @@ export default function ProductsPage() {
 
   const [showPrompt, setShowPrompt] = useState(false);
 
+  /* ===== Loading State ===== */
   if (isLoading) {
     return (
       <AppLayout>
-        <p>Loading products...</p>
+        <p className="text-slate-500">Loading products…</p>
       </AppLayout>
     );
   }
 
+  /* ===== Error State ===== */
   if (isError) {
     return (
       <AppLayout>
@@ -32,27 +34,56 @@ export default function ProductsPage() {
 
   return (
     <AppLayout>
-      <h1 className="text-2xl font-bold mb-6">Products</h1>
+      {/* ===== Header ===== */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">
+          Products
+        </h1>
+        <p className="mt-1 text-slate-500">
+          Browse products and add them to your cart
+        </p>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* ===== Product Grid ===== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {data?.map((product) => (
           <div
             key={product.id}
-            className="bg-gray-900 text-white rounded-xl p-4 shadow"
+            className="
+              group
+              rounded-2xl
+              bg-white dark:bg-zinc-900
+              p-4
+              shadow-sm
+              transition
+              hover:shadow-xl
+              hover:-translate-y-1
+            "
           >
-            {/* 🖼 Image (not clickable) */}
-            <img
-              src={product.image}
-              alt={product.title}
-              className="h-40 mx-auto object-contain pointer-events-none"
-            />
+            {/* 🖼 Product Image (DummyJSON uses thumbnail) */}
+            <div className="h-44 flex items-center justify-center bg-slate-50 dark:bg-zinc-800 rounded-xl">
+              <img
+                src={product.images?.[0] ?? product.thumbnail}
+                alt={product.title}
+                className="
+                  h-36
+                  object-contain
+                  pointer-events-none
+                  transition
+                  group-hover:scale-105
+                "
+              />
+            </div>
 
-            {/* 📝 Title (not clickable) */}
-            <h2 className="mt-3 font-medium line-clamp-2 pointer-events-none">
+            {/* 📝 Title */}
+            <h2 className="mt-4 text-sm font-medium line-clamp-2 text-slate-900 dark:text-white">
               {product.title}
             </h2>
 
-            <p className="font-bold mt-2">₹ {product.price}</p>
+            {/* 💰 Price */}
+            <p className="mt-2 font-semibold text-slate-900 dark:text-white">
+              ₹ {product.price}
+            </p>
 
             {/* 🛒 Add to Cart */}
             <button
@@ -64,7 +95,16 @@ export default function ProductsPage() {
                 }
                 dispatch(addToCart(product));
               }}
-              className="mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded"
+              className="
+                mt-4
+                w-full
+                rounded-md
+                bg-blue-600
+                py-2
+                text-sm font-medium text-white
+                transition
+                hover:bg-blue-700
+              "
             >
               Add to Cart
             </button>
