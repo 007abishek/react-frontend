@@ -7,19 +7,30 @@ type ThemeContextType = {
   toggleTheme: () => void;
 };
 
-const ThemeContext = createContext<ThemeContextType | null>(null);
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  // ✅ Read theme BEFORE first render (NO flicker, NO mismatch)
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "dark";
+    const storedTheme = localStorage.getItem("theme");
+    return storedTheme === "light" || storedTheme === "dark"
+      ? storedTheme
+      : "dark";
+  });
 
+  // ✅ Apply theme to <html> and persist it
   useEffect(() => {
-    console.log("Theme applied:", theme);
-    document.documentElement.classList.remove("light", "dark");
-    document.documentElement.classList.add(theme);
+    const root = document.documentElement;
+
+    root.classList.remove("light", "dark");
+    root.classList.add(theme);
+
+    localStorage.setItem("theme", theme);
   }, [theme]);
 
+  // ✅ Toggle theme
   const toggleTheme = () => {
-    console.log("Toggle clicked");
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
@@ -31,9 +42,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useTheme() {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) {
+  const context = useContext(ThemeContext);
+  if (!context) {
     throw new Error("useTheme must be used inside ThemeProvider");
   }
-  return ctx;
+  return context;
 }

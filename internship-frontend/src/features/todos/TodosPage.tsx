@@ -84,11 +84,11 @@ export default function TodosPage() {
       </div>
 
       {/* Todo list */}
-      <ul className="space-y-2">
+      <ul className="space-y-2 bg-zinc-900">
         {todos.map((todo) => (
           <li
             key={todo.id}
-            className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 p-3 rounded"
+            className="flex items-center justify-between bg-gray-100 dark:bg-zinc-900 p-3 rounded"
           >
             <div className="flex items-center gap-3 flex-1">
               <input

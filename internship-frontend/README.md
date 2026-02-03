@@ -1,1 +1,1 @@
-new folder
+npx storybook@latest init

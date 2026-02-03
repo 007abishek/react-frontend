@@ -16,9 +16,32 @@ export default function FeatureCard({
   return (
     <div
       onClick={() => navigate(route)}
-      className="cursor-pointer bg-gray-100 dark:bg-gray-800 p-6 rounded-xl shadow hover:scale-105 transition"
+      className="
+        cursor-pointer
+        p-6 rounded-2xl
+        bg-gradient-to-br
+        from-indigo-500/10 via-sky-500/10 to-purple-500/10
+        dark:from-indigo-500/20 dark:via-sky-500/20 dark:to-purple-500/20
+        border border-white/10
+        shadow-sm
+        hover:shadow-xl
+        hover:scale-[1.03]
+        transition-all duration-300
+        group
+      "
     >
-      <h2 className="text-lg font-bold mb-2">{title}</h2>
+      <h2
+        className="
+          text-xl font-semibold
+          text-gray-900 dark:text-white
+          mb-2
+          group-hover:text-indigo-500
+          transition-colors
+        "
+      >
+        {title}
+      </h2>
+
       <p className="text-sm text-gray-600 dark:text-gray-300">
         {description}
       </p>
