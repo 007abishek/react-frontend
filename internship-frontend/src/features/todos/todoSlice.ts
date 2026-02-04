@@ -24,6 +24,7 @@ const todoSlice = createSlice({
     },
 
     addTodo: (state, action: PayloadAction<string>) => {
+      // throw new Error("Todo reducer crash test");
       state.todos.push({
         id: crypto.randomUUID(),
         text: action.payload,
