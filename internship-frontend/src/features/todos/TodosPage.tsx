@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import AppLayout from "../../components/layout/AppLayout";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
+import { todoTextSchema } from "./todo.schema";
 import {
   addTodo,
   toggleTodo,
@@ -46,7 +47,13 @@ export default function TodosPage() {
   }, [todos, user?.uid]);
 
   const handleAdd = () => {
-    if (!text.trim()) return;
+    // ✅ Zod validation (CORRECT)
+    const result = todoTextSchema.safeParse(text);
+
+    if (!result.success) {
+      console.warn(result.error.issues[0].message);
+      return;
+    }
 
     // 🔒 Guest restriction
     if (isGuest && todos.length >= 3) {
@@ -54,7 +61,8 @@ export default function TodosPage() {
       return;
     }
 
-    dispatch(addTodo(text));
+    // ✅ Use validated + trimmed value
+    dispatch(addTodo(result.data));
     setText("");
   };
 
@@ -76,6 +84,7 @@ export default function TodosPage() {
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
+            maxLength={100}
             className="
               flex-1
               rounded-md
