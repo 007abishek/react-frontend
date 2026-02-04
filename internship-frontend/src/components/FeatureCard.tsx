@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 
 interface FeatureCardProps {
-  icon: string;          // NEW
+  icon: string;
   title: string;
   description: string;
   route: string;
@@ -19,64 +19,38 @@ export default function FeatureCard({
     <div
       onClick={() => navigate(route)}
       className="
-        group
         cursor-pointer
-        p-6 rounded-2xl
-        bg-gradient-to-br
-        from-indigo-500/10 via-sky-500/10 to-purple-500/10
-        dark:from-indigo-500/20 dark:via-sky-500/20 dark:to-purple-500/20
-        border border-white/10
+        rounded-2xl p-6
+        bg-white/70 dark:bg-slate-800/70
+        backdrop-blur-md
+        border border-slate-200/60 dark:border-slate-700/60
         shadow-sm
-        hover:shadow-xl
-        hover:-translate-y-1
-        transition-all duration-300
+        transition
+        hover:shadow-md
+        hover:border-blue-400/40
       "
     >
-      {/* ===== Icon ===== */}
+      {/* Icon */}
       <div
         className="
-          mb-4
-          flex h-12 w-12 items-center justify-center
+          mb-4 flex h-12 w-12 items-center justify-center
           rounded-xl
-          bg-indigo-500/15
+          bg-blue-500/10 dark:bg-blue-400/20
           text-2xl
-          transition
-          group-hover:scale-110
         "
       >
         {icon}
       </div>
 
-      {/* ===== Title ===== */}
-      <h2
-        className="
-          text-lg font-semibold
-          text-gray-900 dark:text-white
-          mb-1
-          group-hover:text-indigo-500
-          transition-colors
-        "
-      >
+      {/* Title */}
+      <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
         {title}
       </h2>
 
-      {/* ===== Description ===== */}
-      <p className="text-sm text-gray-600 dark:text-gray-300">
+      {/* Description */}
+      <p className="text-sm text-slate-600 dark:text-slate-300">
         {description}
       </p>
-
-      {/* ===== Arrow (micro-interaction) ===== */}
-      <div className="mt-4 flex justify-end text-gray-400">
-        <span
-          className="
-            transform
-            transition
-            group-hover:translate-x-1
-          "
-        >
-          →
-        </span>
-      </div>
     </div>
   );
 }

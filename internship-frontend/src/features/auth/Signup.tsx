@@ -59,7 +59,7 @@ export default function Signup() {
     }
   };
 
-  /* ---------------- SIGNUP (REAL WEBSITE FLOW) ---------------- */
+  /* ---------------- SIGNUP FLOW ---------------- */
 
   const signup = async () => {
     if (!validate()) return;
@@ -77,7 +77,7 @@ export default function Signup() {
       // 2️⃣ Send verification email
       await sendEmailVerification(cred.user);
 
-      // 3️⃣ Logout unverified user (IMPORTANT)
+      // 3️⃣ Logout unverified user
       await signOut(auth);
 
       // 4️⃣ Show success message
@@ -85,7 +85,7 @@ export default function Signup() {
         "Verification email sent. Please verify your email before logging in."
       );
 
-      // 5️⃣ Redirect to login after short delay
+      // 5️⃣ Redirect to login
       setTimeout(() => {
         navigate("/login");
       }, 2000);
@@ -100,29 +100,35 @@ export default function Signup() {
   /* ---------------- UI ---------------- */
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-        <h1 className="text-2xl font-bold text-center mb-6">
-          Create Account
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 flex items-center justify-center px-4">
+      {/* 🔮 Blurred Glow Background */}
+      <div className="absolute -top-40 -left-40 h-[420px] w-[420px] rounded-full bg-purple-500/30 blur-[140px]" />
+      <div className="absolute top-1/3 -right-40 h-[380px] w-[380px] rounded-full bg-blue-500/30 blur-[140px]" />
+      <div className="absolute bottom-0 left-1/4 h-[300px] w-[300px] rounded-full bg-pink-500/20 blur-[120px]" />
+
+      {/* 🧊 Signup Card */}
+      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white/90 backdrop-blur-xl p-8 shadow-2xl border border-white/20">
+        <h1 className="text-2xl font-semibold text-center text-slate-900 mb-6">
+          Create your account
         </h1>
 
         {error && (
           <p
             role="alert"
-            className="text-red-600 text-sm mb-3 text-center"
+            className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200"
           >
             {error}
           </p>
         )}
 
         {success && (
-          <p className="text-green-600 text-sm mb-3 text-center">
+          <p className="mb-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-600 border border-green-200">
             {success}
           </p>
         )}
 
         <input
-          className="w-full border rounded px-3 py-2 mb-3"
+          className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 mb-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Email"
           value={email}
           onChange={(e) => {
@@ -132,9 +138,9 @@ export default function Signup() {
         />
 
         <input
-          className="w-full border rounded px-3 py-2 mb-4"
-          placeholder="Password"
           type="password"
+          className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 mb-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Password"
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
@@ -145,14 +151,17 @@ export default function Signup() {
         <button
           onClick={signup}
           disabled={loading}
-          className="w-full bg-green-600 text-white py-2 rounded mb-3 disabled:opacity-50"
+          className="w-full rounded-lg bg-green-600 py-3 text-white font-medium transition hover:bg-green-700 disabled:opacity-50 shadow-md hover:shadow-lg"
         >
           {loading ? "Creating account..." : "Create Account"}
         </button>
 
-        <p className="text-sm text-center">
+        <p className="text-sm text-center text-slate-600 mt-6">
           Already have an account?{" "}
-          <Link to="/login" className="text-blue-600">
+          <Link
+            to="/login"
+            className="text-blue-600 font-medium hover:underline"
+          >
             Login
           </Link>
         </p>

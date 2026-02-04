@@ -92,12 +92,7 @@ export default function Login() {
 
     try {
       setLoading(true);
-
-      const res = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const res = await signInWithEmailAndPassword(auth, email, password);
 
       await res.user.reload();
 
@@ -123,24 +118,16 @@ export default function Login() {
       const res = await signInWithPopup(auth, googleProvider);
       handleSuccess(res.user, "google");
     } catch (err: any) {
-      if (
-        err.code ===
-        "auth/account-exists-with-different-credential"
-      ) {
+      if (err.code === "auth/account-exists-with-different-credential") {
         const email = err.customData?.email;
-        const methods = await fetchSignInMethodsForEmail(
-          auth,
-          email
-        );
+        const methods = await fetchSignInMethodsForEmail(auth, email);
 
         if (methods.includes("github.com")) {
           setError(
             "This email is already registered using GitHub. Please login with GitHub."
           );
         } else {
-          setError(
-            "This email is already registered with another provider."
-          );
+          setError("This email is already registered with another provider.");
         }
       } else {
         setError("Google login failed. Try again");
@@ -158,24 +145,16 @@ export default function Login() {
       const res = await signInWithPopup(auth, githubProvider);
       handleSuccess(res.user, "github");
     } catch (err: any) {
-      if (
-        err.code ===
-        "auth/account-exists-with-different-credential"
-      ) {
+      if (err.code === "auth/account-exists-with-different-credential") {
         const email = err.customData?.email;
-        const methods = await fetchSignInMethodsForEmail(
-          auth,
-          email
-        );
+        const methods = await fetchSignInMethodsForEmail(auth, email);
 
         if (methods.includes("google.com")) {
           setError(
             "This email is already registered using Google. Please login with Google."
           );
         } else {
-          setError(
-            "This email is already registered with another provider."
-          );
+          setError("This email is already registered with another provider.");
         }
       } else {
         setError("GitHub login failed. Try again");
@@ -202,155 +181,114 @@ export default function Login() {
   /* ---------------- UI ---------------- */
 
   return (
-    <div
-      className="
-        min-h-screen
-        flex items-center justify-center
-        bg-gradient-to-br
-        from-indigo-50 via-white to-blue-50
-        transition-colors duration-500
-      "
-    >
-      <div
-        className="
-          w-full max-w-md
-          bg-white text-slate-900
-          rounded-2xl
-          shadow-xl
-          p-8
-          animate-[fadeIn_0.5s_ease-out]
-        "
-      >
-        <h1 className="text-2xl font-bold text-center mb-6">
-          Login
-        </h1>
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 flex items-center justify-center px-4">
+      {/* 🔮 Page Glow Background */}
+      <div className="absolute -top-40 -left-40 h-[420px] w-[420px] rounded-full bg-purple-500/30 blur-[140px]" />
+      <div className="absolute top-1/3 -right-40 h-[380px] w-[380px] rounded-full bg-blue-500/30 blur-[140px]" />
+      <div className="absolute bottom-0 left-1/4 h-[300px] w-[300px] rounded-full bg-pink-500/20 blur-[120px]" />
 
-        {error && (
-          <p
-            role="alert"
-            className="text-red-500 text-sm mb-3"
+      {/* 🧊 Card Wrapper */}
+      <div className="relative z-10 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-purple-500/10 to-pink-500/20 blur-2xl" />
+
+        <div className="relative z-10 rounded-2xl bg-white/90 backdrop-blur-xl p-8 border border-white/20">
+          <h1 className="text-2xl font-semibold text-center text-slate-900 mb-6">
+            Welcome back
+          </h1>
+
+          {error && (
+            <p
+              role="alert"
+              className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200"
+            >
+              {error}
+            </p>
+          )}
+
+          <input
+            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 mb-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError(null);
+            }}
+          />
+
+          <input
+            type="password"
+            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 mb-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError(null);
+            }}
+          />
+
+          {/* ✅ THEME-SAFE GRADIENT BUTTON */}
+          <button
+            onClick={loginEmail}
+            disabled={loading}
+            className="
+              w-full rounded-lg py-3 font-semibold text-white
+              bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600
+              hover:from-blue-700 hover:via-blue-600 hover:to-indigo-700
+              active:scale-[0.99]
+              transition-all duration-200
+              shadow-lg shadow-blue-500/30
+              ring-1 ring-blue-500/40
+              focus:outline-none focus:ring-2 focus:ring-blue-500
+              disabled:opacity-60 disabled:cursor-not-allowed
+              dark:shadow-blue-400/20
+              dark:ring-blue-400/40
+            "
           >
-            {error}
+            {loading ? "Logging in..." : "Login with Email"}
+          </button>
+
+          <div className="my-6 flex items-center gap-3 text-sm text-slate-400">
+            <div className="h-px flex-1 bg-slate-200" />
+            OR
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          <div className="flex gap-3 mb-4">
+            <button
+              onClick={loginGoogle}
+              disabled={loading}
+              className="flex-1 rounded-lg border border-slate-300 py-2 font-medium transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              Google
+            </button>
+
+            <button
+              onClick={loginGithub}
+              disabled={loading}
+              className="flex-1 rounded-lg border border-slate-300 py-2 font-medium transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              GitHub
+            </button>
+          </div>
+
+          <button
+            onClick={loginGuest}
+            disabled={loading}
+            className="w-full text-sm text-slate-600 underline transition hover:text-slate-800 disabled:opacity-50 mb-4"
+          >
+            Continue as Guest
+          </button>
+
+          <p className="text-sm text-center text-slate-600">
+            Don’t have an account?{" "}
+            <Link
+              to="/signup"
+              className="text-blue-600 font-medium hover:underline"
+            >
+              Sign up
+            </Link>
           </p>
-        )}
-
-        <input
-          className="
-            w-full
-            bg-white
-            text-slate-900
-            border border-slate-300
-            rounded-md
-            px-3 py-2
-            mb-3
-            placeholder-slate-400
-            transition
-            focus:outline-none
-            focus:ring-2 focus:ring-blue-500
-          "
-          placeholder="Email"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            setError(null);
-          }}
-        />
-
-        <input
-          type="password"
-          className="
-            w-full
-            bg-white
-            text-slate-900
-            border border-slate-300
-            rounded-md
-            px-3 py-2
-            mb-4
-            placeholder-slate-400
-            transition
-            focus:outline-none
-            focus:ring-2 focus:ring-blue-500
-          "
-          placeholder="Password"
-          value={password}
-          onChange={(e) => {
-            setPassword(e.target.value);
-            setError(null);
-          }}
-        />
-
-        <button
-          onClick={loginEmail}
-          disabled={loading}
-          className="
-            w-full
-            bg-blue-600 text-white
-            py-2 rounded-md
-            mb-3
-            transition
-            hover:bg-blue-700
-            disabled:opacity-50
-          "
-        >
-          {loading ? "Logging in..." : "Login with Email"}
-        </button>
-
-        <div className="flex gap-3 mb-3">
-          <button
-            onClick={loginGoogle}
-            disabled={loading}
-            className="
-              flex-1
-              bg-white text-slate-900
-              border border-slate-300
-              py-2 rounded-md
-              transition
-              hover:bg-slate-50
-              disabled:opacity-50
-            "
-          >
-            Google
-          </button>
-
-          <button
-            onClick={loginGithub}
-            disabled={loading}
-            className="
-              flex-1
-              bg-white text-slate-900
-              border border-slate-300
-              py-2 rounded-md
-              transition
-              hover:bg-slate-50
-              disabled:opacity-50
-            "
-          >
-            GitHub
-          </button>
         </div>
-
-        <button
-          onClick={loginGuest}
-          disabled={loading}
-          className="
-            w-full
-            text-sm text-slate-600
-            underline
-            mb-4
-            transition
-            hover:text-slate-800
-            disabled:opacity-50
-          "
-        >
-          Continue as Guest
-        </button>
-
-        <p className="text-sm text-center">
-          Don’t have an account?{" "}
-          <Link to="/signup" className="text-blue-600 hover:underline">
-            Sign up
-          </Link>
-        </p>
       </div>
     </div>
   );
