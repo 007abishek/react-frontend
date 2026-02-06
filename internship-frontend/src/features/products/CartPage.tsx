@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import AppLayout from "../../components/layout/AppLayout";
 import {
@@ -5,101 +6,92 @@ import {
   decreaseQty,
   removeFromCart,
 } from "./cartSlice";
+import {
+  selectCartItems,
+  selectCartTotal,
+} from "./cartSelectors";
 
 export default function CartPage() {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  const cartItems = useAppSelector(
-    (state) => state.cart.items
-  );
-
-  const totalAmount = cartItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  // ✅ SAFE selectors
+  const cartItems = useAppSelector(selectCartItems);
+  const totalAmount = useAppSelector(selectCartTotal);
 
   if (cartItems.length === 0) {
     return (
       <AppLayout>
-        <h1 className="text-2xl font-bold mb-4">
-          Your Cart
-        </h1>
-        <p className="text-gray-400">
-          Your cart is empty.
-        </p>
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold mb-2">
+            Your Cart is Empty
+          </h2>
+          <button
+            onClick={() => navigate("/products")}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg"
+          >
+            Browse Products
+          </button>
+        </div>
       </AppLayout>
     );
   }
 
   return (
     <AppLayout>
-      <h1 className="text-2xl font-bold mb-6">
-        Your Cart
-      </h1>
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">Your Cart</h1>
 
-      {/* Cart Items */}
-      <ul className="space-y-4">
-        {cartItems.map((item) => (
-          <li
-            key={item.id}
-            className="flex items-center justify-between bg-gray-900 border border-gray-700 rounded-lg px-6 py-4"
-          >
-            {/* LEFT: Product Info */}
-            <div>
-              <h3 className="text-lg font-semibold text-white">
-                {item.title}
-              </h3>
-              <p className="text-gray-300">
-                ₹ {item.price}
-              </p>
+        <div className="grid lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-4">
+            {cartItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-6 bg-white dark:bg-zinc-900 border rounded-xl p-6"
+              >
+                <img
+                  src={item.images?.[0] ?? item.thumbnail}
+                  alt={item.title}
+                  className="w-24 h-24 object-contain"
+                />
+
+                <div className="flex-1">
+                  <h3 className="font-semibold">{item.title}</h3>
+                  <p className="text-blue-600 font-bold">
+                    ₹ {item.price}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button onClick={() => dispatch(decreaseQty(item.id))}>−</button>
+                  <span>{item.quantity}</span>
+                  <button onClick={() => dispatch(increaseQty(item.id))}>+</button>
+                </div>
+
+                <button
+                  onClick={() => dispatch(removeFromCart(item.id))}
+                  className="text-red-500"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl">
+            <div className="flex justify-between font-bold text-lg">
+              <span>Total</span>
+              <span>₹ {totalAmount.toFixed(2)}</span>
             </div>
 
-            {/* RIGHT: Quantity Controls */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() =>
-                  dispatch(decreaseQty(item.id))
-                }
-                className="w-8 h-8 flex items-center justify-center border border-gray-500 rounded text-white hover:bg-gray-700"
-              >
-                −
-              </button>
-
-              <span className="text-white font-medium w-4 text-center">
-                {item.quantity}
-              </span>
-
-              <button
-                onClick={() =>
-                  dispatch(increaseQty(item.id))
-                }
-                className="w-8 h-8 flex items-center justify-center border border-gray-500 rounded text-white hover:bg-gray-700"
-              >
-                +
-              </button>
-
-              {/* Remove */}
-              <button
-                onClick={() =>
-                  dispatch(removeFromCart(item.id))
-                }
-                className="ml-4 text-red-500 hover:text-red-400"
-              >
-                ✕
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      {/* Summary */}
-      <div className="mt-8 flex justify-between items-center border-t border-gray-700 pt-4">
-        <span className="text-lg font-semibold">
-          Total:
-        </span>
-        <span className="text-xl font-bold">
-          ₹ {totalAmount.toFixed(2)}
-        </span>
+            <button
+              onClick={() => navigate("/checkout")}
+              className="w-full mt-4 bg-blue-600 text-white py-3 rounded-lg"
+            >
+              Proceed to Checkout
+            </button>
+          </div>
+        </div>
       </div>
     </AppLayout>
   );

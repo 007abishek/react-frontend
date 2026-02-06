@@ -27,23 +27,52 @@ export const store = configureStore({
   },
 
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware()
-      // 1️⃣ Listener middleware (side effects first)
+    getDefaultMiddleware({
+      serializableCheck: {
+        /**
+         * ✅ RTK Query internally stores Request / Response objects
+         * These are non-serializable by design and SAFE to ignore.
+         */
+        ignoredActions: [
+          "productApi/executeQuery/pending",
+          "productApi/executeQuery/fulfilled",
+          "productApi/executeQuery/rejected",
+          "githubApi/executeQuery/pending",
+          "githubApi/executeQuery/fulfilled",
+          "githubApi/executeQuery/rejected",
+        ],
+
+        /**
+         * ✅ Ignore RTK Query cache + listener metadata
+         */
+        ignoredPaths: [
+          "productApi",
+          "githubApi",
+          "meta.baseQueryMeta",
+        ],
+
+        /**
+         * ✅ Allow timestamp-like metadata (Sentry / IndexedDB)
+         */
+        ignoredActionPaths: ["meta.timestamp", "payload.timestamp"],
+      },
+    })
+
+      // 1️⃣ Listener middleware FIRST (IndexedDB sync, side effects)
       .prepend(cartListener.middleware)
 
-      // 2️⃣ Sentry middleware (catch reducer & listener crashes)
+      // 2️⃣ Sentry middleware (error capture)
       .concat(sentryMiddleware)
 
-      // 3️⃣ RTK Query middleware (API handling)
-      .concat(
-        productApi.middleware,
-        githubApi.middleware
-      ),
+      // 3️⃣ RTK Query middleware LAST
+      .concat(productApi.middleware, githubApi.middleware),
 });
 
 // 🔹 Typed helpers
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
-// 🧪 Optional debug (remove later)
-console.log("STORE INIT STATE:", store.getState());
+// 🧪 Dev-only debug
+if (process.env.NODE_ENV === "development") {
+  console.log("STORE INITIALIZED:", store.getState());
+}

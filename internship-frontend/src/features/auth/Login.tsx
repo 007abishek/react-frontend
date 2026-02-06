@@ -226,7 +226,7 @@ export default function Login() {
             }}
           />
 
-          {/* ✅ THEME-SAFE GRADIENT BUTTON */}
+          {/* ✅ Email Login Button */}
           <button
             onClick={loginEmail}
             disabled={loading}
@@ -254,18 +254,40 @@ export default function Login() {
           </div>
 
           <div className="flex gap-3 mb-4">
+            {/* 🎨 Google Button - Purple to Pink Gradient */}
             <button
               onClick={loginGoogle}
               disabled={loading}
-              className="flex-1 rounded-lg border border-slate-300 py-2 font-medium transition hover:bg-slate-50 disabled:opacity-50"
+              className="
+                flex-1 rounded-lg py-2 font-semibold text-white
+                bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500
+                hover:from-indigo-700 hover:via-blue-700 hover:to-cyan-600
+                active:scale-[0.99]
+                transition-all duration-200
+                shadow-md shadow-blue-500/30
+                ring-1 ring-blue-500/40
+                focus:outline-none focus:ring-2 focus:ring-blue-500
+                disabled:opacity-60 disabled:cursor-not-allowed
+              "
             >
               Google
             </button>
 
+            {/* 🎨 GitHub Button - Indigo to Cyan Gradient */}
             <button
               onClick={loginGithub}
               disabled={loading}
-              className="flex-1 rounded-lg border border-slate-300 py-2 font-medium transition hover:bg-slate-50 disabled:opacity-50"
+              className="
+                flex-1 rounded-lg py-2 font-semibold text-white
+                bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500
+                hover:from-indigo-700 hover:via-blue-700 hover:to-cyan-600
+                active:scale-[0.99]
+                transition-all duration-200
+                shadow-md shadow-blue-500/30
+                ring-1 ring-blue-500/40
+                focus:outline-none focus:ring-2 focus:ring-blue-500
+                disabled:opacity-60 disabled:cursor-not-allowed
+              "
             >
               GitHub
             </button>
@@ -280,7 +302,7 @@ export default function Login() {
           </button>
 
           <p className="text-sm text-center text-slate-600">
-            Don’t have an account?{" "}
+            Don't have an account?{" "}
             <Link
               to="/signup"
               className="text-blue-600 font-medium hover:underline"

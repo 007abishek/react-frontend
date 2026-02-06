@@ -6,6 +6,9 @@ import { auth } from "../../firebase/config";
 import AvatarMenu from "../AvatarMenu";
 import ThemeToggle from "../ThemeToggle";
 
+// ✅ NEW: safe selector
+import { selectCartCount } from "../../features/products/cartSelectors";
+
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -13,12 +16,8 @@ export default function Navbar() {
 
   const { user, loading } = useAppSelector((state) => state.auth);
 
-  const cartCount = useAppSelector((state) =>
-    state.cart.items.reduce(
-      (total, item) => total + item.quantity,
-      0
-    )
-  );
+  // ✅ FIX: use memoized, NaN-safe selector
+  const cartCount = useAppSelector(selectCartCount);
 
   if (loading || !user) return null;
 
@@ -162,6 +161,8 @@ export default function Navbar() {
                 d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
               />
             </svg>
+
+            {/* ✅ Cart Count Badge */}
             {cartCount > 0 && (
               <span
                 className="
@@ -209,8 +210,7 @@ export default function Navbar() {
           "
         >
           <span className="relative z-10">Logout</span>
-          
-          {/* Shine effect on hover */}
+
           <div
             className="
               absolute inset-0

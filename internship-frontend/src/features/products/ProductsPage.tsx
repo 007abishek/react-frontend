@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AppLayout from "../../components/layout/AppLayout";
 import { useGetProductsQuery } from "./productApi";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
@@ -6,6 +7,7 @@ import { addToCart } from "./cartSlice";
 import SignupPrompt from "../../components/SignupPrompt";
 
 export default function ProductsPage() {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { data, isLoading, isError } = useGetProductsQuery();
 
@@ -13,6 +15,26 @@ export default function ProductsPage() {
   const isGuest = user?.provider === "guest";
 
   const [showPrompt, setShowPrompt] = useState(false);
+
+  /* ===== Handle Product Click (Navigate to Detail Page) ===== */
+  const handleProductClick = (productId: number) => {
+    navigate(`/product/${productId}`);
+  };
+
+  /* ===== Handle Quick Add to Cart (Prevent Navigation) ===== */
+  const handleQuickAddToCart = (
+    e: React.MouseEvent,
+    product: any
+  ) => {
+    e.stopPropagation(); // Prevent navigation to detail page
+
+    if (isGuest) {
+      setShowPrompt(true);
+      return;
+    }
+
+    dispatch(addToCart(product));
+  };
 
   /* ===== Loading State ===== */
   if (isLoading) {
@@ -49,6 +71,7 @@ export default function ProductsPage() {
         {data?.map((product) => (
           <div
             key={product.id}
+            onClick={() => handleProductClick(product.id)}
             className="
               group
               rounded-2xl
@@ -58,6 +81,7 @@ export default function ProductsPage() {
               transition
               hover:shadow-xl
               hover:-translate-y-1
+              cursor-pointer
             "
           >
             {/* 🖼 Product Image (DummyJSON uses thumbnail) */}
@@ -85,16 +109,10 @@ export default function ProductsPage() {
               ₹ {product.price}
             </p>
 
-            {/* 🛒 Add to Cart */}
+            {/* 🛒 Add to Cart (Quick Add - No Navigation) */}
             <button
               type="button"
-              onClick={() => {
-                if (isGuest) {
-                  setShowPrompt(true);
-                  return;
-                }
-                dispatch(addToCart(product));
-              }}
+              onClick={(e) => handleQuickAddToCart(e, product)}
               className="
                 mt-4
                 w-full

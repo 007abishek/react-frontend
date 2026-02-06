@@ -1,11 +1,18 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
-import type { Product } from "./types";
 
 /* ==============================
    TYPES
 ================================ */
-export interface CartItem extends Product {
+export interface CartItem {
+  id: number;
+  title: string;
+  price: number;
+
+  // Image handling
+  thumbnail: string;
+  images: string[];
+
   quantity: number;
 }
 
@@ -21,71 +28,76 @@ const initialState: CartState = {
 };
 
 /* ==============================
+   HELPERS
+================================ */
+const safeNumber = (value: unknown, fallback = 0) =>
+  Number.isFinite(Number(value)) ? Number(value) : fallback;
+
+/* ==============================
    SLICE
 ================================ */
 const cartSlice = createSlice({
   name: "cart",
   initialState,
   reducers: {
-    /* 🛒 Add product to cart */
-    addToCart(state, action: PayloadAction<Product>) {
-      const item = state.items.find(
-        (i) => i.id === action.payload.id
+    // Replace entire cart (auth / persistence)
+    setCart: (state, action: PayloadAction<CartItem[]>) => {
+      state.items = action.payload.map((item) => ({
+        ...item,
+        price: safeNumber(item.price, 0),
+        quantity: safeNumber(item.quantity, 1),
+      }));
+    },
+
+    addToCart: (state, action: PayloadAction<CartItem>) => {
+      const incoming: CartItem = {
+        ...action.payload,
+        price: safeNumber(action.payload.price, 0),
+        quantity: safeNumber(action.payload.quantity, 1),
+      };
+
+      const existingItem = state.items.find(
+        (item) => item.id === incoming.id
       );
 
-      if (item) {
-        item.quantity += 1;
+      if (existingItem) {
+        existingItem.quantity = safeNumber(existingItem.quantity, 1);
+        existingItem.quantity += incoming.quantity;
       } else {
-        state.items.push({
-          ...action.payload,
-          quantity: 1,
-        });
+        state.items.push(incoming);
       }
     },
 
-    /* ➕ Increase quantity */
-    increaseQty(state, action: PayloadAction<number>) {
+    increaseQty: (state, action: PayloadAction<number>) => {
       const item = state.items.find(
-        (i) => i.id === action.payload
+        (item) => item.id === action.payload
       );
-      if (item) {
-        item.quantity += 1;
-      }
-    },
-
-    /* ➖ Decrease quantity (minimum 1) */
-    decreaseQty(state, action: PayloadAction<number>) {
-      const item = state.items.find(
-        (i) => i.id === action.payload
-      );
-
       if (!item) return;
 
+      item.quantity = safeNumber(item.quantity, 1);
+      item.quantity += 1;
+    },
+
+    decreaseQty: (state, action: PayloadAction<number>) => {
+      const item = state.items.find(
+        (item) => item.id === action.payload
+      );
+      if (!item) return;
+
+      item.quantity = safeNumber(item.quantity, 1);
       if (item.quantity > 1) {
         item.quantity -= 1;
-      } else {
-        // Optional UX: remove item if quantity reaches 0
-        state.items = state.items.filter(
-          (i) => i.id !== action.payload
-        );
       }
     },
 
-    /* ❌ Remove item completely */
-    removeFromCart(state, action: PayloadAction<number>) {
+    removeFromCart: (state, action: PayloadAction<number>) => {
       state.items = state.items.filter(
-        (i) => i.id !== action.payload
+        (item) => item.id !== action.payload
       );
     },
 
-    /* 🧹 Clear cart (on logout) */
-    clearCart(state) {
+    clearCart: (state) => {
       state.items = [];
-    },
-
-    /* 🔑 Hydrate cart from IndexedDB */
-    setCart(state, action: PayloadAction<CartItem[]>) {
-      state.items = action.payload;
     },
   },
 });
@@ -94,12 +106,12 @@ const cartSlice = createSlice({
    EXPORTS
 ================================ */
 export const {
+  setCart,
   addToCart,
   increaseQty,
   decreaseQty,
   removeFromCart,
   clearCart,
-  setCart,
 } = cartSlice.actions;
 
 export default cartSlice.reducer;

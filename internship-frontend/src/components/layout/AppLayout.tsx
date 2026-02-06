@@ -63,7 +63,7 @@ export default function AppLayout({ children }: Props) {
       <Footer />
 
       {/* ===== Custom animations ===== */}
-      <style jsx>{`
+      <style >{`
         @keyframes blob {
           0%, 100% {
             transform: translate(0, 0) scale(1);
