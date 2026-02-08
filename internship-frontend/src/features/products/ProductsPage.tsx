@@ -6,27 +6,33 @@ import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { addToCart } from "./cartSlice";
 import SignupPrompt from "../../components/SignupPrompt";
 
+// ✅ NEW imports (config-driven UI)
+import { productsPageConfig } from "./config/productsPageConfig";
+import ConfigRenderer from "./components/ConfigRenderer";
+
 export default function ProductsPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { data, isLoading, isError } = useGetProductsQuery();
+
+  // keep API exactly same
+  const { data = [], isLoading, isError } = useGetProductsQuery();
 
   const { user } = useAppSelector((state) => state.auth);
   const isGuest = user?.provider === "guest";
 
   const [showPrompt, setShowPrompt] = useState(false);
 
-  /* ===== Handle Product Click (Navigate to Detail Page) ===== */
+  /* ===== Handle Product Click ===== */
   const handleProductClick = (productId: number) => {
     navigate(`/product/${productId}`);
   };
 
-  /* ===== Handle Quick Add to Cart (Prevent Navigation) ===== */
+  /* ===== Handle Quick Add to Cart ===== */
   const handleQuickAddToCart = (
     e: React.MouseEvent,
     product: any
   ) => {
-    e.stopPropagation(); // Prevent navigation to detail page
+    e.stopPropagation();
 
     if (isGuest) {
       setShowPrompt(true);
@@ -56,7 +62,7 @@ export default function ProductsPage() {
 
   return (
     <AppLayout>
-      {/* ===== Header ===== */}
+      {/* ===== Header (UNCHANGED) ===== */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">
           Products
@@ -66,71 +72,20 @@ export default function ProductsPage() {
         </p>
       </div>
 
-      {/* ===== Product Grid ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {data?.map((product) => (
-          <div
-            key={product.id}
-            onClick={() => handleProductClick(product.id)}
-            className="
-              group
-              rounded-2xl
-              bg-white dark:bg-zinc-900
-              p-4
-              shadow-sm
-              transition
-              hover:shadow-xl
-              hover:-translate-y-1
-              cursor-pointer
-            "
-          >
-            {/* 🖼 Product Image (DummyJSON uses thumbnail) */}
-            <div className="h-44 flex items-center justify-center bg-slate-50 dark:bg-zinc-800 rounded-xl">
-              <img
-                src={product.images?.[0] ?? product.thumbnail}
-                alt={product.title}
-                className="
-                  h-36
-                  object-contain
-                  pointer-events-none
-                  transition
-                  group-hover:scale-105
-                "
-              />
-            </div>
-
-            {/* 📝 Title */}
-            <h2 className="mt-4 text-sm font-medium line-clamp-2 text-slate-900 dark:text-white">
-              {product.title}
-            </h2>
-
-            {/* 💰 Price */}
-            <p className="mt-2 font-semibold text-slate-900 dark:text-white">
-              ₹ {product.price}
-            </p>
-
-            {/* 🛒 Add to Cart (Quick Add - No Navigation) */}
-            <button
-              type="button"
-              onClick={(e) => handleQuickAddToCart(e, product)}
-              className="
-                mt-4
-                w-full
-                rounded-md
-                bg-blue-600
-                py-2
-                text-sm font-medium text-white
-                transition
-                hover:bg-blue-700
-              "
-            >
-              Add to Cart
-            </button>
-          </div>
+      {/* ===== CONFIG-DRIVEN UI (NEW) ===== */}
+      {productsPageConfig.sections
+        .filter((section) => section.enabled)
+        .map((section) => (
+          <ConfigRenderer
+            key={section.id}
+            section={section}
+            products={data}
+            onProductClick={handleProductClick}
+            onQuickAdd={handleQuickAddToCart}
+          />
         ))}
-      </div>
 
-      {/* 🔔 Signup prompt for guest users */}
+      {/* ===== Signup Prompt (UNCHANGED) ===== */}
       {showPrompt && (
         <SignupPrompt message="Sign up to add products to your cart" />
       )}

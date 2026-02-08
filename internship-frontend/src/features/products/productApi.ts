@@ -5,41 +5,28 @@ import { createBaseQueryWithSentry } from "../../utils/baseQueryWithSentry";
 export const productApi = createApi({
   reducerPath: "productApi",
 
+  // ✅ API layer responsibility: fetching + error handling only
   baseQuery: createBaseQueryWithSentry(
     "https://dummyjson.com",
     "product"
   ),
 
   endpoints: (builder) => ({
+    // ✅ Fetch ALL products (no filtering here)
     getProducts: builder.query<Product[], void>({
       query: () => "products",
+      transformResponse: (response: { products: Product[] }) =>
+        response.products,
+    }),
 
-      transformResponse: (response: {
-        products: Product[];
-      }) => {
-        // ✅ Electronics-like categories
-        const electronicsCategories = [
-          "smartphones",
-          "laptops",
-          "lighting",
-          "automotive",
-          "motorcycle",
-          "home-decoration",
-        ];
-
-        const filtered = response.products.filter(
-          (p) =>
-            p.category &&
-            electronicsCategories.includes(p.category)
-        );
-
-        // ✅ SAFETY FALLBACK (IMPORTANT)
-        return filtered.length > 0
-          ? filtered
-          : response.products;
-      },
+    // ✅ Fetch single product by ID
+    getProductById: builder.query<Product, number>({
+      query: (id) => `products/${id}`,
     }),
   }),
 });
 
-export const { useGetProductsQuery } = productApi;
+export const {
+  useGetProductsQuery,
+  useGetProductByIdQuery,
+} = productApi;
