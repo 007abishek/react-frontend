@@ -27,6 +27,18 @@ export const productsPageConfig = {
       filter: {
         minRating: 4.5,
       },
+      
     },
+
+    // {
+    //   id: "groceries",
+    //   type: "productGrid",
+    //   title: "⭐ groceries",
+    //   enabled: true,
+    //   filter: {
+    //     category: "groceries",
+    //   },
+      
+    // },
   ],
 };

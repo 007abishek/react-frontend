@@ -46,7 +46,7 @@ export default function ProductsPage() {
   if (isLoading) {
     return (
       <AppLayout>
-        <p className="text-slate-500">Loading products…</p>
+        <p className="text-slate-500 dark:text-slate-400">Loading products…</p>
       </AppLayout>
     );
   }
@@ -55,19 +55,19 @@ export default function ProductsPage() {
   if (isError) {
     return (
       <AppLayout>
-        <p className="text-red-500">Failed to load products</p>
+        <p className="text-red-500 dark:text-red-400">Failed to load products</p>
       </AppLayout>
     );
   }
 
   return (
     <AppLayout>
-      {/* ===== Header (UNCHANGED) ===== */}
+      {/* ===== Header (UPDATED for theme) ===== */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
           Products
         </h1>
-        <p className="mt-1 text-slate-500">
+        <p className="mt-1 text-slate-500 dark:text-slate-400">
           Browse products and add them to your cart
         </p>
       </div>

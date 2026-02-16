@@ -30,6 +30,11 @@ export default function CheckoutPage() {
     expiryDate: "",
     cvv: "",
   });
+  
+  // ✅ NEW: UPI Details State
+  const [upiDetails, setUpiDetails] = useState({
+    upiId: "",
+  });
 
   const calculateTotal = () => {
     return cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -51,6 +56,9 @@ export default function CheckoutPage() {
       items: cartItems,
       address,
       paymentMethod,
+      // ✅ Include payment details based on method
+      ...(paymentMethod === "card" && { cardDetails }),
+      ...(paymentMethod === "upi" && { upiDetails }),
       total: calculateTotal(),
       orderId: `ORD-${Date.now()}`,
       orderDate: new Date().toISOString(),
@@ -359,6 +367,33 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
+                  {/* ✅ NEW: UPI Details (shown only if UPI is selected) */}
+                  {paymentMethod === "upi" && (
+                    <div className="space-y-4 pt-4">
+                      <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4 mb-4">
+                        <p className="text-blue-300 text-sm">
+                          Enter your UPI ID to complete the payment
+                        </p>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="UPI ID (e.g., yourname@paytm)"
+                        required
+                        value={upiDetails.upiId}
+                        onChange={(e) =>
+                          setUpiDetails({
+                            ...upiDetails,
+                            upiId: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <p className="text-gray-400 text-xs">
+                        Supported UPI apps: Google Pay, PhonePe, Paytm, BHIM, etc.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex gap-4">
                     <button
                       type="button"
@@ -410,12 +445,16 @@ export default function CheckoutPage() {
                   <h3 className="text-white font-semibold mb-2">
                     Payment Method
                   </h3>
-                  <p className="text-gray-300 text-sm capitalize">
-                    {paymentMethod === "cod"
-                      ? "Cash on Delivery"
-                      : paymentMethod === "card"
-                      ? "Credit/Debit Card"
-                      : "UPI Payment"}
+                  <p className="text-gray-300 text-sm">
+                    {paymentMethod === "cod" && "Cash on Delivery"}
+                    {paymentMethod === "card" && "Credit/Debit Card"}
+                    {paymentMethod === "upi" && (
+                      <>
+                        UPI Payment
+                        <br />
+                        <span className="text-blue-400">UPI ID: {upiDetails.upiId}</span>
+                      </>
+                    )}
                   </p>
                   <button
                     onClick={() => setStep("payment")}

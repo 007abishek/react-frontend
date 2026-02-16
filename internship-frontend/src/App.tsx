@@ -16,6 +16,7 @@ import OrderSuccessPage from "./features/products/OrderSuccessPage";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
+
 export default function App() {
   return (
     <Routes>
@@ -97,8 +98,12 @@ export default function App() {
         }
       />
 
+      
+
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
+
+      
     </Routes>
   );
 }

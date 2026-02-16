@@ -54,7 +54,8 @@ export default function ProductGrid({
 
   return (
     <div className="mb-12">
-      <h2 className="mb-4 text-2xl font-bold text-white">
+      {/* ✅ UPDATED: Theme-aware heading */}
+      <h2 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">
         {section.title}
       </h2>
 
@@ -73,11 +74,13 @@ export default function ProductGrid({
               />
             </div>
 
-            <h3 className="mt-4 text-sm font-medium line-clamp-2">
+            {/* ✅ UPDATED: Theme-aware product title */}
+            <h3 className="mt-4 text-sm font-medium line-clamp-2 text-gray-900 dark:text-white">
               {product.title}
             </h3>
 
-            <p className="mt-2 font-semibold">
+            {/* ✅ UPDATED: Theme-aware price */}
+            <p className="mt-2 font-semibold text-gray-900 dark:text-white">
               ₹ {product.price}
             </p>
 
