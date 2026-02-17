@@ -5,6 +5,36 @@ Built with a ** modular monolith** architecture.
 
 ---
 
+overview
+
+## Backend Overview
+
+---
+
+- **Hybrid Authentication** — Firebase handles all OAuth flows (Google, GitHub) and email verification client-side while the Express backend verifies the Firebase ID token server-side via Admin SDK, issues its own JWT, and persists every user into PostgreSQL regardless of provider — giving full ownership of identity data without rebuilding login UI.
+
+- **Contract-First REST API** — All endpoints designed around the exact response shape the frontend already expects, meaning zero frontend refactoring when switching from DummyJSON mock to real Postgres-backed API — just one base URL change and everything works.
+
+- **Config-Driven Product Layer** — 46 products seeded across 6 categories from DummyJSON into PostgreSQL, exposed via 5 REST endpoints, with category and rating filtering handled entirely client-side to match the existing config-driven UI architecture.
+
+- **Server-Side Cart with IndexedDB Fallback** — Cart items persisted in PostgreSQL per user so cart survives device switches and browser clears, with IndexedDB kept as silent fallback if backend is unreachable — zero UX disruption either way.
+
+- **Durable Order Placement via Temporal** — Order placement runs as a Temporal workflow — validates inventory, reserves stock, creates the order record, initiates payment, then either confirms or rolls back atomically — so a server crash mid-checkout never leaves an order in a broken state.
+
+- **Inventory Reservation System** — Stock is reserved the moment checkout starts, held for 15 minutes via a Temporal timer, then automatically released back to available stock if payment is not completed — preventing overselling without permanently reducing stock prematurely.
+
+- **Dual Payment Gateway** — Razorpay handles UPI, netbanking, and Indian cards while Stripe covers international cards, both integrated with webhook listeners that signal the Temporal payment workflow to confirm or retry — with Cash on Delivery as a third synchronous path.
+
+- **Payment Retry Workflow** — Failed payments trigger a Temporal retry workflow that waits for a new payment signal up to 3 attempts before automatically cancelling the order and releasing reserved inventory — no manual intervention needed.
+
+- **GraphQL via Hasura** — After all tables are established, Hasura sits on top of PostgreSQL and auto-generates a full GraphQL API with zero extra code — enabling complex nested queries like order history with items, products, and payment status in a single request alongside the existing REST layer.
+
+- **Row-Level Security** — Hasura permissions ensure users can only read and write their own cart, orders, and payment data — guests get read-only access to products — enforced at the database query level not just the application layer.
+
+- **Modular Monolith Architecture** — Clean separation between routes, controllers, models, and services inside a single deployable unit — each module (auth, products, cart, orders, payments) is self-contained and can be extracted into a microservice independently if scaling ever demands it.
+
+- **Dockerized Infrastructure** — PostgreSQL, Hasura, Temporal, and the Express API all orchestrated via Docker Compose for identical local and production environments — one command to start the entire stack.
+
 ## 📋 Table of Contents
 
 - [Architecture](#architecture)
