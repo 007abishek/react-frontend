@@ -9,6 +9,9 @@ import { setCart, clearCart } from "../products/cartSlice";
 import { loadCartForUser } from "../../utils/indexedDb";
 import type { AppDispatch } from "../../app/store";
 
+// ─── Backend API URL ──────────────────────────────────────────
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
 export const startAuthListener = (dispatch: AppDispatch) => {
   return onAuthStateChanged(auth, async (firebaseUser) => {
     // 🔍 NO USER (logged out)
@@ -42,7 +45,30 @@ export const startAuthListener = (dispatch: AppDispatch) => {
       return;
     }
 
+    // ─── ADD 1: Get Firebase token ────────────────────────────
+    // Exchange Firebase token for YOUR backend JWT
+    try {
+      const firebaseIdToken = await firebaseUser.getIdToken();
+
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firebaseIdToken }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // ─── ADD 2: Store JWT in localStorage ─────────────────
+        localStorage.setItem("jwt", data.token);
+      }
+    } catch (err) {
+      // Backend unreachable — still works Firebase only
+      console.warn("Backend unavailable, running Firebase only:", err);
+    }
+    // ─────────────────────────────────────────────────────────
+
     // ✅ VERIFIED USER (Google / GitHub / Verified Email)
+    // This stays EXACTLY the same — Redux shape unchanged
     dispatch(
       loginSuccess({
         uid: firebaseUser.uid,
