@@ -14,6 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export const startAuthListener = (dispatch: AppDispatch) => {
   return onAuthStateChanged(auth, async (firebaseUser) => {
+
     // 🔍 NO USER (logged out)
     if (!firebaseUser) {
       dispatch(logout());
@@ -45,30 +46,25 @@ export const startAuthListener = (dispatch: AppDispatch) => {
       return;
     }
 
-    // ─── ADD 1: Get Firebase token ────────────────────────────
-    // Exchange Firebase token for YOUR backend JWT
+    // ─── Exchange Firebase token for backend JWT ──────────────
     try {
       const firebaseIdToken = await firebaseUser.getIdToken();
 
       const res = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firebaseIdToken }),
+        body:    JSON.stringify({ firebaseIdToken }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        // ─── ADD 2: Store JWT in localStorage ─────────────────
         localStorage.setItem("jwt", data.token);
       }
     } catch (err) {
-      // Backend unreachable — still works Firebase only
       console.warn("Backend unavailable, running Firebase only:", err);
     }
-    // ─────────────────────────────────────────────────────────
 
-    // ✅ VERIFIED USER (Google / GitHub / Verified Email)
-    // This stays EXACTLY the same — Redux shape unchanged
+    // ✅ VERIFIED USER — Redux dispatch (UNCHANGED)
     dispatch(
       loginSuccess({
         uid: firebaseUser.uid,
@@ -84,10 +80,49 @@ export const startAuthListener = (dispatch: AppDispatch) => {
       })
     );
 
-    // 🛒 Load cart ONLY for non-guest users
+    // 🛒 Load cart for non-guest users
     if (!firebaseUser.isAnonymous) {
-      const cart = await loadCartForUser(firebaseUser.uid);
-      dispatch(setCart(cart));
+      const jwt = localStorage.getItem("jwt");
+
+      // ── Try Postgres first ──────────────────────────────
+      if (jwt) {
+        try {
+          const res = await fetch(`${API_URL}/cart`, {
+            headers: { "Authorization": `Bearer ${jwt}` },
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            dispatch(setCart(data.items));
+            console.log("✅ Cart loaded from Postgres");
+            dispatch(authResolved());
+            return; // ← skip IndexedDB
+          }
+        } catch (err) {
+          console.warn("⚠️ Postgres cart failed, falling back:", err);
+        }
+      }
+
+      // ── Fallback: IndexedDB (ORIGINAL CODE) ────────────
+      try {
+        const cart = await loadCartForUser(firebaseUser.uid);
+        dispatch(setCart(cart));
+        console.log("✅ Cart loaded from IndexedDB (fallback)");
+
+        // Push IndexedDB cart → Postgres silently
+        if (jwt && cart.length > 0) {
+          fetch(`${API_URL}/cart/sync`, {
+            method:  "POST",
+            headers: {
+              "Content-Type":  "application/json",
+              "Authorization": `Bearer ${jwt}`,
+            },
+            body: JSON.stringify({ items: cart }),
+          }).catch(() => {}); // fire and forget
+        }
+      } catch (err) {
+        console.error("❌ Failed to load cart:", err);
+      }
     }
 
     // 🔓 Auth check finished

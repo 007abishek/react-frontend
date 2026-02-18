@@ -2,36 +2,55 @@ import { createListenerMiddleware } from "@reduxjs/toolkit";
 import { saveCartForUser } from "../../utils/indexedDb";
 import type { RootState } from "../../app/store";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
 export const cartListener = createListenerMiddleware();
 
 cartListener.startListening({
-  // 🔑 Only react when the items array in the cart actually changes
+  // Only react when cart items actually change
   predicate: (_action, currentState, previousState) => {
-    const current = currentState as RootState;
+    const current  = currentState as RootState;
     const previous = previousState as RootState;
-
     return current.cart.items !== previous.cart.items;
   },
 
   effect: async (_action, listenerApi) => {
-    // ⏳ Optional: Add a small delay (debounce) to avoid 
-    // excessive writes during rapid quantity changes
+    // Debounce — avoid excessive writes
     await listenerApi.delay(500);
 
-    const state = listenerApi.getState() as RootState;
-    const user = state.auth.user;
+    const state  = listenerApi.getState() as RootState;
+    const user   = state.auth.user;
+    const items  = state.cart.items;
 
-    // 🚫 Don't persist if user is not logged in or if there is no UID
-    if (!user?.uid) {
-      return;
+    // Don't persist if not logged in or guest
+    if (!user?.uid || user.provider === "guest") return;
+
+    const jwt = localStorage.getItem("jwt");
+
+    // ─── Try Postgres first ───────────────────────────────
+    if (jwt) {
+      try {
+        await fetch(`${API_URL}/cart/sync`, {
+          method:  "POST",
+          headers: {
+            "Content-Type":  "application/json",
+            "Authorization": `Bearer ${jwt}`,
+          },
+          body: JSON.stringify({ items }),
+        });
+        console.log("✅ Cart synced to Postgres");
+        return; // success — skip IndexedDB
+      } catch (err) {
+        console.warn("⚠️ Postgres sync failed, falling back to IndexedDB:", err);
+      }
     }
 
+    // ─── Fallback: IndexedDB ──────────────────────────────
     try {
-      // 💾 Save the current items array (including quantities) to IndexedDB
-      await saveCartForUser(user.uid, state.cart.items);
-      console.log("Cart successfully synced to IndexedDB");
-    } catch (error) {
-      console.error("Failed to sync cart to IndexedDB:", error);
+      await saveCartForUser(user.uid, items);
+      console.log("✅ Cart synced to IndexedDB (fallback)");
+    } catch (err) {
+      console.error("❌ Failed to sync cart:", err);
     }
   },
 });
