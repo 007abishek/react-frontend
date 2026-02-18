@@ -38,6 +38,30 @@ const initDb = async (): Promise<void> => {
       CREATE INDEX IF NOT EXISTS idx_products_category
       ON products(category)
     `);
+     
+
+    await pool.query(`
+  CREATE TABLE IF NOT EXISTS cart_items (
+    id         SERIAL        PRIMARY KEY,
+    user_id    INTEGER       NOT NULL REFERENCES users(id)
+                             ON DELETE CASCADE,
+    product_id INTEGER       NOT NULL,
+    title      TEXT          NOT NULL,
+    price      NUMERIC(10,2) NOT NULL,
+    thumbnail  TEXT,
+    images     TEXT[]        DEFAULT '{}',
+    quantity   INTEGER       NOT NULL DEFAULT 1,
+    created_at TIMESTAMP     DEFAULT NOW(),
+    updated_at TIMESTAMP     DEFAULT NOW(),
+    UNIQUE(user_id, product_id)
+  )
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_cart_items_user_id
+  ON cart_items(user_id)
+`);
+
 
     console.log("✅ Database ready");
   } catch (error) {

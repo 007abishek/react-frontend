@@ -6,6 +6,7 @@ import morgan from "morgan";
 import { initDb }      from "./config/db";
 import authRoutes      from "./routes/auth";
 import productRoutes   from "./routes/products"; // ← ADD
+import cartRoutes      from "./routes/cart";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -13,16 +14,21 @@ const PORT = process.env.PORT || 3001;
 // ─── Middleware ───────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
-  origin:      process.env.CLIENT_URL,
+  origin: [
+        "http://localhost:5173",
+        "http://localhost:5174",
+      
+  ],
   credentials: true,
-}));
+}))
+;
 app.use(express.json());
 app.use(morgan("dev"));
 
 // ─── Routes ───────────────────────────────────────────────────
 app.use("/auth",     authRoutes);
 app.use("/products", productRoutes); // ← ADD
-
+app.use("/cart",     cartRoutes);
 // ─── Health Check ─────────────────────────────────────────────
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok" });
