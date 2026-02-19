@@ -107,7 +107,7 @@ const initDb = async (): Promise<void> => {
     CHECK (status IN ('pending', 'confirmed', 'expired', 'cancelled'))
   )
 `);
-
+    
 await pool.query(`
   CREATE INDEX IF NOT EXISTS idx_inventory_reservations_status
   ON inventory_reservations(status)
@@ -119,7 +119,95 @@ await pool.query(`
   WHERE status = 'pending'
 `);
 
-    
+   /* ============================
+       ORDERS TABLE
+      ==========================*/
+  await pool.query(`
+  CREATE TABLE IF NOT EXISTS orders (
+    id              SERIAL        PRIMARY KEY,
+    user_id         INTEGER       NOT NULL REFERENCES users(id),
+    firebase_uid    TEXT          NOT NULL,
+    order_id        TEXT          UNIQUE NOT NULL,
+    status          TEXT          NOT NULL DEFAULT 'pending',
+    payment_method  TEXT          NOT NULL,
+    subtotal        NUMERIC(10,2) NOT NULL,
+    total           NUMERIC(10,2) NOT NULL,
+    created_at      TIMESTAMP     DEFAULT NOW(),
+    updated_at      TIMESTAMP     DEFAULT NOW(),
+    CHECK (status IN ('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'))
+  )
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS order_items (
+    id          SERIAL        PRIMARY KEY,
+    order_id    INTEGER       NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id  INTEGER       NOT NULL,
+    title       TEXT          NOT NULL,
+    price       NUMERIC(10,2) NOT NULL,
+    thumbnail   TEXT,
+    quantity    INTEGER       NOT NULL,
+    created_at  TIMESTAMP     DEFAULT NOW()
+  )
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS shipping_addresses (
+    id            SERIAL    PRIMARY KEY,
+    order_id      INTEGER   UNIQUE NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    full_name     TEXT      NOT NULL,
+    phone         TEXT      NOT NULL,
+    email         TEXT      NOT NULL,
+    address_line1 TEXT      NOT NULL,
+    address_line2 TEXT,
+    city          TEXT      NOT NULL,
+    state         TEXT      NOT NULL,
+    pincode       TEXT      NOT NULL,
+    created_at    TIMESTAMP DEFAULT NOW()
+  )
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_orders_order_id ON orders(order_id)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)
+`);
+
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS payments (
+    id                   SERIAL        PRIMARY KEY,
+    order_id             INTEGER       NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    user_id              INTEGER       NOT NULL REFERENCES users(id),
+    provider             TEXT          NOT NULL DEFAULT 'stripe',
+    amount               NUMERIC(10,2) NOT NULL,
+    currency             TEXT          NOT NULL DEFAULT 'inr',
+    status               TEXT          NOT NULL DEFAULT 'pending',
+    stripe_payment_intent_id TEXT      UNIQUE,
+    stripe_payment_method TEXT,
+    created_at           TIMESTAMP     DEFAULT NOW(),
+    updated_at           TIMESTAMP     DEFAULT NOW(),
+    CHECK (status IN ('pending', 'processing', 'succeeded', 'failed', 'cancelled'))
+  )
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_payments_order_id
+  ON payments(order_id)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_payments_stripe_intent
+  ON payments(stripe_payment_intent_id)
+`);
+
+  
 
     console.log("✅ Database ready (Phase 3 supported)");
   } catch (error) {

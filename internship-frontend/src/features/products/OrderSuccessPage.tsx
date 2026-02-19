@@ -118,7 +118,7 @@ export default function OrderSuccessPage() {
                   className="flex gap-4 bg-slate-700/50 rounded-lg p-3"
                 >
                   <img
-                    src={item.image}
+                    src={item.thumbnail || item.image}
                     alt={item.title}
                     className="w-16 h-16 object-contain bg-white rounded"
                   />

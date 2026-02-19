@@ -11,6 +11,10 @@ import productRoutes from "./routes/products";
 import cartRoutes from "./routes/cart";
 import inventoryRoutes from "./routes/inventory";
 import inventoryModel from "./models/inventory.model";
+import orderRoutes from "./routes/orders";
+import paymentRoutes   from "./routes/payments"; 
+import { handleStripeWebhook } from "./controllers/payment.controller";
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -31,6 +35,12 @@ app.use(
   })
 );
 
+app.post(
+  "/payments/stripe/webhook",
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook
+);
+
 app.use(express.json());
 app.use(morgan("dev"));
 
@@ -42,7 +52,8 @@ app.use("/auth", authRoutes);
 app.use("/products", productRoutes);
 app.use("/cart", cartRoutes);
 app.use("/inventory", inventoryRoutes);
-
+app.use("/orders",orderRoutes);
+app.use("/payments",paymentRoutes);
 /* ============================================================
    HEALTH CHECK
 ============================================================ */

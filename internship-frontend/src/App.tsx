@@ -13,9 +13,10 @@ import ProductDetailPage from "./features/products/ProductDetailPage";
 import CartPage from "./features/products/CartPage";
 import CheckoutPage from "./features/products/CheckoutPage";
 import OrderSuccessPage from "./features/products/OrderSuccessPage";
+import OrderHistoryPage from "./features/products/OrderHistoryPage";
+import OrderDetailPage from "./features/products/OrderDetailPage";  // ← ADD THIS
 
 import ProtectedRoute from "./components/ProtectedRoute";
-
 
 export default function App() {
   return (
@@ -98,12 +99,27 @@ export default function App() {
         }
       />
 
-      
+      {/* ← ADD THESE TWO ROUTES */}
+      <Route
+        path="/orders"
+        element={
+          <ProtectedRoute>
+            <OrderHistoryPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/orders/:orderId"
+        element={
+          <ProtectedRoute>
+            <OrderDetailPage />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
-
-      
     </Routes>
   );
 }
