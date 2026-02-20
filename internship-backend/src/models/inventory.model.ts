@@ -205,6 +205,20 @@ const releaseExpired = async (): Promise<number> => {
   
   return result.rows.length;
 };
+   // get reservation by Id
+
+const getByIntentId = async (id: string): Promise<ReservationRow | null> => {
+  const result = await pool.query<ReservationRow>(
+    `SELECT * FROM inventory_reservations WHERE id = $1`,
+    [parseInt(id)]
+  );
+  
+  return result.rows[0] || null;
+};
+
+
+
+
 
 export default {
   checkAvailability,
@@ -213,5 +227,6 @@ export default {
   release,
   getPendingByUser,
   releaseExpired,
+  getByIntentId,
 };
 

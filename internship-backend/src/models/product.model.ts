@@ -1,27 +1,21 @@
 import { pool } from "../config/db";
 
-/* ============================================================
-   TYPES
-============================================================ */
-
+// ─── Types ────────────────────────────────────────────────────
 export interface ProductRow {
-  id: number;
+  id:          number;
   external_id: number;
-  title: string;
+  title:       string;
   description: string;
-  price: number;
-  category: string;
-  thumbnail: string;
-  images: string[];
-  rating: number;
-  stock: number;
-  brand: string;
+  price:       number;
+  category:    string;
+  thumbnail:   string;
+  images:      string[];
+  rating:      number;
+  stock:       number;
+  brand:       string;
 }
 
-/* ============================================================
-   BASIC PRODUCT QUERIES
-============================================================ */
-
+// ─── Get all products ─────────────────────────────────────────
 const getAll = async (): Promise<ProductRow[]> => {
   const res = await pool.query<ProductRow>(
     `SELECT id, external_id, title, description, price, category,
@@ -32,6 +26,7 @@ const getAll = async (): Promise<ProductRow[]> => {
   return res.rows;
 };
 
+// ─── Get products by category ─────────────────────────────────
 const getByCategory = async (category: string): Promise<ProductRow[]> => {
   const res = await pool.query<ProductRow>(
     `SELECT id, external_id, title, description, price, category,
@@ -44,6 +39,7 @@ const getByCategory = async (category: string): Promise<ProductRow[]> => {
   return res.rows;
 };
 
+// ─── Get single product by ID ─────────────────────────────────
 const getById = async (id: number): Promise<ProductRow | null> => {
   const res = await pool.query<ProductRow>(
     `SELECT id, external_id, title, description, price, category,
@@ -55,6 +51,7 @@ const getById = async (id: number): Promise<ProductRow | null> => {
   return res.rows[0] || null;
 };
 
+// ─── Search products by title ─────────────────────────────────
 const search = async (q: string): Promise<ProductRow[]> => {
   const res = await pool.query<ProductRow>(
     `SELECT id, external_id, title, description, price, category,
@@ -67,6 +64,7 @@ const search = async (q: string): Promise<ProductRow[]> => {
   return res.rows;
 };
 
+// ─── Get top rated products ───────────────────────────────────
 const getTopRated = async (minRating: number): Promise<ProductRow[]> => {
   const res = await pool.query<ProductRow>(
     `SELECT id, external_id, title, description, price, category,
@@ -79,10 +77,7 @@ const getTopRated = async (minRating: number): Promise<ProductRow[]> => {
   return res.rows;
 };
 
-/* ============================================================
-   BULK INSERT
-============================================================ */
-
+// ─── Bulk insert (used by seed script) ───────────────────────
 const bulkInsert = async (
   products: Omit<ProductRow, "id">[]
 ): Promise<number> => {
@@ -123,108 +118,6 @@ const bulkInsert = async (
   return inserted;
 };
 
-/* ============================================================
-   INVENTORY — RESERVE STOCK
-============================================================ */
-
-const reserveStock = async (
-  userId: number,
-  productId: number,
-  quantity: number
-): Promise<void> => {
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    const productRes = await client.query<{ stock: number }>(
-      "SELECT stock FROM products WHERE id = $1 FOR UPDATE",
-      [productId]
-    );
-
-    if (productRes.rows.length === 0) {
-      throw new Error("Product not found");
-    }
-
-    const currentStock = productRes.rows[0].stock;
-
-    if (currentStock < quantity) {
-      throw new Error("Insufficient stock");
-    }
-
-    await client.query(
-      "UPDATE products SET stock = stock - $1 WHERE id = $2",
-      [quantity, productId]
-    );
-
-    await client.query(
-      `INSERT INTO inventory_reservations
-       (user_id, product_id, quantity, status, expires_at)
-       VALUES ($1, $2, $3, 'reserved', NOW() + INTERVAL '15 minutes')`,
-      [userId, productId, quantity]
-    );
-
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-};
-
-/* ============================================================
-   INVENTORY — RELEASE EXPIRED RESERVATIONS
-============================================================ */
-
-const releaseExpiredReservations = async (): Promise<number> => {
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    const expiredRes = await client.query<{
-      id: number;
-      product_id: number;
-      quantity: number;
-    }>(
-      `SELECT id, product_id, quantity
-       FROM inventory_reservations
-       WHERE status = 'reserved'
-       AND expires_at < NOW()
-       FOR UPDATE`
-    );
-
-    let releasedCount = 0;
-
-    for (const row of expiredRes.rows) {
-      await client.query(
-        "UPDATE products SET stock = stock + $1 WHERE id = $2",
-        [row.quantity, row.product_id]
-      );
-
-      await client.query(
-        "UPDATE inventory_reservations SET status = 'released' WHERE id = $1",
-        [row.id]
-      );
-
-      releasedCount++;
-    }
-
-    await client.query("COMMIT");
-    return releasedCount;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-};
-
-/* ============================================================
-   EXPORT
-============================================================ */
-
 export default {
   getAll,
   getByCategory,
@@ -232,6 +125,4 @@ export default {
   search,
   getTopRated,
   bulkInsert,
-  reserveStock,
-  releaseExpiredReservations,
 };
