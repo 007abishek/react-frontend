@@ -1,20 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../../components/layout/AppLayout";
-import { useGetProductsQuery } from "./productApi";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
-import { addToCart } from "./cartSlice";
 import SignupPrompt from "../../components/SignupPrompt";
-
-// ✅ NEW imports (config-driven UI)
-import { productsPageConfig } from "./config/productsPageConfig";
+import { addToCart } from "./cartSlice";
+import ProductGridSkeleton from "./components/ProductGridSkeleton";
 import ConfigRenderer from "./components/ConfigRenderer";
+import { useGetProductsQuery } from "./productApi";
+import { productsPageConfig } from "./config/productsPageConfig";
 
 export default function ProductsPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-
-  // keep API exactly same
   const { data = [], isLoading, isError } = useGetProductsQuery();
 
   const { user } = useAppSelector((state) => state.auth);
@@ -22,16 +19,11 @@ export default function ProductsPage() {
 
   const [showPrompt, setShowPrompt] = useState(false);
 
-  /* ===== Handle Product Click ===== */
   const handleProductClick = (productId: number) => {
     navigate(`/product/${productId}`);
   };
 
-  /* ===== Handle Quick Add to Cart ===== */
-  const handleQuickAddToCart = (
-    e: React.MouseEvent,
-    product: any
-  ) => {
+  const handleQuickAddToCart = (e: React.MouseEvent, product: any) => {
     e.stopPropagation();
 
     if (isGuest) {
@@ -42,16 +34,18 @@ export default function ProductsPage() {
     dispatch(addToCart(product));
   };
 
-  /* ===== Loading State ===== */
   if (isLoading) {
     return (
       <AppLayout>
-        <p className="text-slate-500 dark:text-slate-400">Loading products…</p>
+        <div className="mb-6 animate-pulse">
+          <div className="h-10 w-40 rounded-md bg-slate-200 dark:bg-zinc-700 shimmer" />
+          <div className="mt-2 h-5 w-72 rounded-md bg-slate-200 dark:bg-zinc-700 shimmer" />
+        </div>
+        <ProductGridSkeleton cards={6} />
       </AppLayout>
     );
   }
 
-  /* ===== Error State ===== */
   if (isError) {
     return (
       <AppLayout>
@@ -62,17 +56,24 @@ export default function ProductsPage() {
 
   return (
     <AppLayout>
-      {/* ===== Header (UPDATED for theme) ===== */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-          Products
-        </h1>
-        <p className="mt-1 text-slate-500 dark:text-slate-400">
-          Browse products and add them to your cart
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+            Products
+          </h1>
+          <p className="mt-1 text-slate-500 dark:text-slate-400">
+            Browse products and add them to your cart
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate("/orders")}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+        >
+          Order History
+        </button>
       </div>
 
-      {/* ===== CONFIG-DRIVEN UI (NEW) ===== */}
       {productsPageConfig.sections
         .filter((section) => section.enabled)
         .map((section) => (
@@ -85,10 +86,7 @@ export default function ProductsPage() {
           />
         ))}
 
-      {/* ===== Signup Prompt (UNCHANGED) ===== */}
-      {showPrompt && (
-        <SignupPrompt message="Sign up to add products to your cart" />
-      )}
+      {showPrompt && <SignupPrompt message="Sign up to add products to your cart" />}
     </AppLayout>
   );
 }

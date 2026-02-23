@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { CardElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const MIN_CARD_PAYMENT_INR = 50;
 
 interface BillingDetails {
@@ -15,40 +14,27 @@ interface BillingDetails {
   pincode: string;
 }
 
-interface CheckoutItem {
-  id: number;
-  title: string;
-  price: number;
-  quantity: number;
-  thumbnail?: string;
-  images?: string[];
-}
-
-interface CardOrderPayload {
-  items: CheckoutItem[];
-  address: BillingDetails;
-  total: number;
-}
-
 interface StripePaymentFormProps {
+  clientSecret: string;
   amount?: number;
-  orderPayload?: CardOrderPayload;
   billingDetails?: BillingDetails;
+  existingOrderData?: Record<string, unknown> | null;
   onSuccess: ((orderData: Record<string, unknown>) => void) | (() => void);
   onError: (error: string) => void;
 }
 
 export default function StripePaymentForm({
+  clientSecret,
   amount,
-  orderPayload,
   billingDetails,
+  existingOrderData,
   onSuccess,
   onError,
 }: StripePaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [orderData, setOrderData] = useState<Record<string, unknown> | null>(null);
+
   const resolveBilling = (): BillingDetails => ({
     fullName: billingDetails?.fullName || "",
     email: billingDetails?.email || "",
@@ -59,50 +45,13 @@ export default function StripePaymentForm({
     state: billingDetails?.state || "",
     pincode: billingDetails?.pincode || "",
   });
+
   const emitSuccess = (data: Record<string, unknown>) => {
     if (onSuccess.length === 0) {
       (onSuccess as () => void)();
       return;
     }
     (onSuccess as (orderData: Record<string, unknown>) => void)(data);
-  };
-
-  const getJwt = () => localStorage.getItem("jwt");
-
-  const ensureOrder = async () => {
-    if (orderData) return orderData;
-
-    const jwt = getJwt();
-    if (!jwt) {
-      throw new Error("Please login again. Missing auth token.");
-    }
-    if (!orderPayload) {
-      throw new Error("Missing order details for card payment.");
-    }
-
-    const res = await fetch(`${API_URL}/orders`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${jwt}`,
-      },
-      body: JSON.stringify({
-        ...orderPayload,
-        paymentMethod: "card",
-      }),
-    });
-
-    const data = (await res.json()) as {
-      message?: string;
-      order?: Record<string, unknown>;
-    };
-
-    if (!res.ok || !data.order) {
-      throw new Error(data.message || "Failed to create order");
-    }
-
-    setOrderData(data.order);
-    return data.order;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,63 +62,26 @@ export default function StripePaymentForm({
       return;
     }
 
-    const cardElement = elements.getElement(CardElement);
-    if (!cardElement) {
-      onError("Card input is not ready. Please refresh and try again.");
+    if (!clientSecret) {
+      onError("Payment is not initialized. Please go back and try again.");
+      return;
+    }
+
+    if (typeof amount === "number" && amount < MIN_CARD_PAYMENT_INR) {
+      onError(`Minimum card payment is Rs ${MIN_CARD_PAYMENT_INR.toFixed(2)}.`);
       return;
     }
 
     setIsProcessing(true);
 
     try {
-      const jwt = getJwt();
-      if (!jwt) {
-        throw new Error("Please login again. Missing auth token.");
-      }
-
-      const createdOrder = await ensureOrder();
-      const orderId = String(createdOrder.orderId || "");
-      if (!orderId) {
-        throw new Error("Order ID missing for payment.");
-      }
-      if (typeof amount !== "number" || Number.isNaN(amount) || amount <= 0) {
-        throw new Error("Invalid payment amount.");
-      }
-      if (amount < MIN_CARD_PAYMENT_INR) {
-        throw new Error(
-          `Minimum card payment is Rs ${MIN_CARD_PAYMENT_INR.toFixed(2)}.`
-        );
-      }
-
       const safeBilling = resolveBilling();
 
-      const intentRes = await fetch(`${API_URL}/payments/stripe/intent`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${jwt}`,
-        },
-        body: JSON.stringify({
-          orderId,
-          amount,
-          currency: "inr",
-        }),
-      });
-
-      const intentData = (await intentRes.json()) as {
-        clientSecret?: string;
-        message?: string;
-      };
-
-      if (!intentRes.ok || !intentData.clientSecret) {
-        throw new Error(intentData.message || "Could not create payment intent");
-      }
-
-      const { error, paymentIntent } = await stripe.confirmCardPayment(
-        intentData.clientSecret,
-        {
-          payment_method: {
-            card: cardElement,
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        redirect: "if_required",
+        confirmParams: {
+          payment_method_data: {
             billing_details: {
               name: safeBilling.fullName,
               email: safeBilling.email,
@@ -184,21 +96,26 @@ export default function StripePaymentForm({
               },
             },
           },
-        }
-      );
+        },
+      });
 
       if (error) {
         throw new Error(error.message || "Payment failed");
       }
 
-      if (!paymentIntent || paymentIntent.status !== "succeeded") {
-        throw new Error("Payment was not completed. Please try again.");
+      if (!paymentIntent) {
+        throw new Error("Payment could not be confirmed. Please try again.");
+      }
+
+      if (!["succeeded", "processing", "requires_capture"].includes(paymentIntent.status)) {
+        throw new Error(`Payment status is ${paymentIntent.status}. Please try again.`);
       }
 
       emitSuccess({
-        ...createdOrder,
+        ...(existingOrderData || {}),
         paymentMethod: "card",
         paymentIntentId: paymentIntent.id,
+        paymentStatus: paymentIntent.status,
       });
     } catch (err) {
       const message =
@@ -212,20 +129,9 @@ export default function StripePaymentForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="rounded-lg border border-slate-600 bg-slate-700 px-4 py-3">
-        <CardElement
+        <PaymentElement
           options={{
-            style: {
-              base: {
-                fontSize: "16px",
-                color: "#f8fafc",
-                "::placeholder": {
-                  color: "#94a3b8",
-                },
-              },
-              invalid: {
-                color: "#f87171",
-              },
-            },
+            layout: "tabs",
           }}
         />
       </div>

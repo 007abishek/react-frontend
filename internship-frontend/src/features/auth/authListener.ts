@@ -1,70 +1,62 @@
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../../firebase/config";
-import {
-  loginSuccess,
-  logout,
-  authResolved,
-} from "./authSlice";
+import { loginSuccess, logout, authResolved } from "./authSlice";
 import { setCart, clearCart } from "../products/cartSlice";
 import { loadCartForUser } from "../../utils/indexedDb";
 import type { AppDispatch } from "../../app/store";
+import { clearHasuraToken } from "../../utils/hasuraClient";
+import { fetchCart, syncCart } from "../products/hasuraCommerce";
 
-// ─── Backend API URL ──────────────────────────────────────────
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 export const startAuthListener = (dispatch: AppDispatch) => {
   return onAuthStateChanged(auth, async (firebaseUser) => {
-
-    // 🔍 NO USER (logged out)
     if (!firebaseUser) {
+      localStorage.removeItem("jwt");
+      clearHasuraToken();
       dispatch(logout());
       dispatch(clearCart());
       dispatch(authResolved());
       return;
     }
 
-    // 🔄 Ensure latest user state (important after email verification)
     await firebaseUser.reload();
 
-    const providerId =
-      firebaseUser.providerData[0]?.providerId;
-
+    const providerId = firebaseUser.providerData[0]?.providerId;
     const isOAuthProvider =
-      providerId === "google.com" ||
-      providerId === "github.com";
+      providerId === "google.com" || providerId === "github.com";
 
-    // ❌ BLOCK unverified EMAIL/PASSWORD users
     if (
       !isOAuthProvider &&
       !firebaseUser.isAnonymous &&
       !firebaseUser.emailVerified
     ) {
       await signOut(auth);
+      localStorage.removeItem("jwt");
+      clearHasuraToken();
       dispatch(logout());
       dispatch(clearCart());
       dispatch(authResolved());
       return;
     }
 
-    // ─── Exchange Firebase token for backend JWT ──────────────
     try {
       const firebaseIdToken = await firebaseUser.getIdToken();
-
       const res = await fetch(`${API_URL}/auth/login`, {
-        method:  "POST",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ firebaseIdToken }),
+        body: JSON.stringify({ firebaseIdToken }),
       });
 
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem("jwt", data.token);
+        clearHasuraToken();
       }
     } catch (err) {
-      console.warn("Backend unavailable, running Firebase only:", err);
+      console.warn("Backend auth exchange failed:", err);
     }
 
-    // ✅ VERIFIED USER — Redux dispatch (UNCHANGED)
     dispatch(
       loginSuccess({
         uid: firebaseUser.uid,
@@ -80,52 +72,28 @@ export const startAuthListener = (dispatch: AppDispatch) => {
       })
     );
 
-    // 🛒 Load cart for non-guest users
     if (!firebaseUser.isAnonymous) {
-      const jwt = localStorage.getItem("jwt");
-
-      // ── Try Postgres first ──────────────────────────────
-      if (jwt) {
-        try {
-          const res = await fetch(`${API_URL}/cart`, {
-            headers: { "Authorization": `Bearer ${jwt}` },
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            dispatch(setCart(data.items));
-            console.log("✅ Cart loaded from Postgres");
-            dispatch(authResolved());
-            return; // ← skip IndexedDB
-          }
-        } catch (err) {
-          console.warn("⚠️ Postgres cart failed, falling back:", err);
-        }
+      try {
+        const cart = await fetchCart();
+        dispatch(setCart(cart));
+        dispatch(authResolved());
+        return;
+      } catch (err) {
+        console.warn("Hasura cart load failed, falling back:", err);
       }
 
-      // ── Fallback: IndexedDB (ORIGINAL CODE) ────────────
       try {
         const cart = await loadCartForUser(firebaseUser.uid);
         dispatch(setCart(cart));
-        console.log("✅ Cart loaded from IndexedDB (fallback)");
 
-        // Push IndexedDB cart → Postgres silently
-        if (jwt && cart.length > 0) {
-          fetch(`${API_URL}/cart/sync`, {
-            method:  "POST",
-            headers: {
-              "Content-Type":  "application/json",
-              "Authorization": `Bearer ${jwt}`,
-            },
-            body: JSON.stringify({ items: cart }),
-          }).catch(() => {}); // fire and forget
+        if (cart.length > 0) {
+          syncCart(cart).catch(() => undefined);
         }
       } catch (err) {
-        console.error("❌ Failed to load cart:", err);
+        console.error("Failed to load cart fallback:", err);
       }
     }
 
-    // 🔓 Auth check finished
     dispatch(authResolved());
   });
 };

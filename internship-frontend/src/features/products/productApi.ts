@@ -1,32 +1,35 @@
-import { createApi } from "@reduxjs/toolkit/query/react";
+import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { Product } from "./types";
-import { createBaseQueryWithSentry } from "../../utils/baseQueryWithSentry";
+import { fetchProductById, fetchProducts } from "./hasuraCommerce";
 
 export const productApi = createApi({
   reducerPath: "productApi",
-
-  // ✅ API layer responsibility: fetching + error handling only
-  baseQuery: createBaseQueryWithSentry(
-    "https://dummyjson.com",
-    "product"
-  ),
-
+  baseQuery: fakeBaseQuery(),
   endpoints: (builder) => ({
-    // ✅ Fetch ALL products (no filtering here)
     getProducts: builder.query<Product[], void>({
-      query: () => "products",
-      transformResponse: (response: { products: Product[] }) =>
-        response.products,
+      queryFn: async () => {
+        try {
+          const products = await fetchProducts();
+          return { data: products };
+        } catch (error) {
+          return { error: { status: "CUSTOM_ERROR", error: String(error) } };
+        }
+      },
     }),
-
-    // ✅ Fetch single product by ID
     getProductById: builder.query<Product, number>({
-      query: (id) => `products/${id}`,
+      queryFn: async (id) => {
+        try {
+          const product = await fetchProductById(id);
+          if (!product) {
+            return { error: { status: 404, error: "Product not found" } };
+          }
+          return { data: product };
+        } catch (error) {
+          return { error: { status: "CUSTOM_ERROR", error: String(error) } };
+        }
+      },
     }),
   }),
 });
 
-export const {
-  useGetProductsQuery,
-  useGetProductByIdQuery,
-} = productApi;
+export const { useGetProductsQuery, useGetProductByIdQuery } = productApi;

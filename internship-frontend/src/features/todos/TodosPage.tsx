@@ -8,6 +8,7 @@ import {
   deleteTodo,
   setTodos,
 } from "./todoSlice";
+import type { Todo } from "./todoSlice";
 import {
   loadTodosForUser,
   saveTodosForUser,
@@ -128,7 +129,7 @@ export default function TodosPage() {
           </li>
         )}
 
-        {todos.map((todo) => (
+        {todos.map((todo: Todo) => (
           <li
             key={todo.id}
             className="
