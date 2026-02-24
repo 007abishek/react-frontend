@@ -1,6 +1,8 @@
+import "dotenv/config";
 import { NativeConnection, Worker } from '@temporalio/worker';
 import * as inventoryActivities from './activities/inventory.activities';
 import * as orderActivities from './activities/order.activities';
+import * as lambdaActivities from './activities/lambda.activities';
 import path from 'path';
 
 async function run() {
@@ -14,6 +16,7 @@ async function run() {
     const activities = {
       ...inventoryActivities,
       ...orderActivities,
+      ...lambdaActivities,
     };
 
     // Create worker
@@ -44,18 +47,3 @@ run().catch((err) => {
   console.error('Fatal error:', err);
   process.exit(1);
 });
-```
-
----
-
-## File Structure Verification
-```
-src/temporal/
-├── client.ts                           ✅ Given
-├── worker.ts                           ✅ Updated
-├── workflows/
-│   ├── orderPlacement.ts              ✅ Given
-│   └── inventoryRelease.ts            ✅ NEW
-└── activities/
-    ├── inventory.activities.ts        ✅ Given
-    └── order.activities.ts            ✅ NEW

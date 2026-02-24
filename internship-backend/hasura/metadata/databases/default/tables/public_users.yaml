@@ -1,0 +1,31 @@
+table:
+  name: users
+  schema: public
+array_relationships:
+  - name: orders
+    using:
+      foreign_key_constraint_on:
+        table:
+          name: orders
+          schema: public
+        column: user_id
+  - name: cart_items
+    using:
+      foreign_key_constraint_on:
+        table:
+          name: cart_items
+          schema: public
+        column: user_id
+select_permissions:
+  - role: user
+    permission:
+      columns:
+        - id
+        - firebase_uid
+        - email
+        - provider
+        - is_guest
+        - created_at
+      filter:
+        id:
+          _eq: X-Hasura-User-Id

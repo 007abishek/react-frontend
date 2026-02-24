@@ -152,6 +152,23 @@ await pool.query(`
 `);
 
 await pool.query(`
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.table_constraints
+      WHERE constraint_name = 'order_items_product_id_fkey'
+    ) THEN
+      ALTER TABLE order_items
+      ADD CONSTRAINT order_items_product_id_fkey
+      FOREIGN KEY (product_id)
+      REFERENCES products(id)
+      ON DELETE RESTRICT;
+    END IF;
+  END $$;
+`);
+
+await pool.query(`
   CREATE TABLE IF NOT EXISTS shipping_addresses (
     id            SERIAL    PRIMARY KEY,
     order_id      INTEGER   UNIQUE NOT NULL REFERENCES orders(id) ON DELETE CASCADE,

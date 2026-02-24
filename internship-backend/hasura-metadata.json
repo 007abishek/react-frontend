@@ -1,0 +1,369 @@
+{
+  "type": "replace_metadata",
+  "args": {
+    "version": 3,
+    "sources": [
+      {
+        "name": "default",
+        "kind": "postgres",
+        "configuration": {
+          "connection_info": {
+            "database_url": {
+              "from_env": "HASURA_GRAPHQL_DATABASE_URL"
+            }
+          }
+        },
+        "tables": [
+          {
+            "table": { "schema": "public", "name": "products" },
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "external_id",
+                    "title",
+                    "description",
+                    "price",
+                    "category",
+                    "thumbnail",
+                    "images",
+                    "rating",
+                    "stock",
+                    "brand",
+                    "created_at"
+                  ],
+                  "filter": {},
+                  "allow_aggregations": true
+                }
+              },
+              {
+                "role": "guest",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "external_id",
+                    "title",
+                    "description",
+                    "price",
+                    "category",
+                    "thumbnail",
+                    "images",
+                    "rating",
+                    "stock",
+                    "brand",
+                    "created_at"
+                  ],
+                  "filter": {},
+                  "allow_aggregations": true
+                }
+              }
+            ]
+          },
+          {
+            "table": { "schema": "public", "name": "users" },
+            "array_relationships": [
+              {
+                "name": "orders",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "table": { "schema": "public", "name": "orders" },
+                    "column": "user_id"
+                  }
+                }
+              },
+              {
+                "name": "cart_items",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "table": { "schema": "public", "name": "cart_items" },
+                    "column": "user_id"
+                  }
+                }
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": ["id", "firebase_uid", "email", "provider", "is_guest", "created_at"],
+                  "filter": { "id": { "_eq": "X-Hasura-User-Id" } }
+                }
+              }
+            ]
+          },
+          {
+            "table": { "schema": "public", "name": "cart_items" },
+            "object_relationships": [
+              {
+                "name": "user",
+                "using": { "foreign_key_constraint_on": "user_id" }
+              },
+              {
+                "name": "product",
+                "using": { "foreign_key_constraint_on": "product_id" }
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "user_id",
+                    "product_id",
+                    "title",
+                    "price",
+                    "thumbnail",
+                    "images",
+                    "quantity",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "allow_aggregations": true
+                }
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "check": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "set": { "user_id": "X-Hasura-User-Id" },
+                  "columns": [
+                    "product_id",
+                    "title",
+                    "price",
+                    "thumbnail",
+                    "images",
+                    "quantity"
+                  ]
+                }
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "check": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "columns": ["title", "price", "thumbnail", "images", "quantity", "updated_at"]
+                }
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } }
+                }
+              }
+            ]
+          },
+          {
+            "table": { "schema": "public", "name": "orders" },
+            "object_relationships": [
+              {
+                "name": "user",
+                "using": { "foreign_key_constraint_on": "user_id" }
+              }
+            ],
+            "array_relationships": [
+              {
+                "name": "order_items",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "table": { "schema": "public", "name": "order_items" },
+                    "column": "order_id"
+                  }
+                }
+              },
+              {
+                "name": "shipping_addresses",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "table": { "schema": "public", "name": "shipping_addresses" },
+                    "column": "order_id"
+                  }
+                }
+              }
+            ],
+            "event_triggers": [
+              {
+                "name": "order_inserted_start_workflow",
+                "definition": {
+                  "enable_manual": false,
+                  "insert": { "columns": "*" }
+                },
+                "retry_conf": {
+                  "interval_sec": 10,
+                  "num_retries": 3,
+                  "timeout_sec": 60
+                },
+                "webhook_from_env": "HASURA_ORDER_EVENT_WEBHOOK_URL",
+                "headers": [
+                  {
+                    "name": "x-hasura-event-secret",
+                    "value_from_env": "HASURA_EVENT_SECRET"
+                  }
+                ]
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "user_id",
+                    "firebase_uid",
+                    "order_id",
+                    "status",
+                    "payment_method",
+                    "subtotal",
+                    "total",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "allow_aggregations": true
+                }
+              }
+            ]
+          },
+          {
+            "table": { "schema": "public", "name": "order_items" },
+            "object_relationships": [
+              {
+                "name": "order",
+                "using": { "foreign_key_constraint_on": "order_id" }
+              },
+              {
+                "name": "product",
+                "using": { "foreign_key_constraint_on": "product_id" }
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "order_id",
+                    "product_id",
+                    "title",
+                    "price",
+                    "thumbnail",
+                    "quantity",
+                    "created_at"
+                  ],
+                  "filter": { "order": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "allow_aggregations": true
+                }
+              }
+            ]
+          },
+          {
+            "table": { "schema": "public", "name": "shipping_addresses" },
+            "object_relationships": [
+              {
+                "name": "order",
+                "using": { "foreign_key_constraint_on": "order_id" }
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "order_id",
+                    "full_name",
+                    "phone",
+                    "email",
+                    "address_line1",
+                    "address_line2",
+                    "city",
+                    "state",
+                    "pincode",
+                    "created_at"
+                  ],
+                  "filter": { "order": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "allow_aggregations": true
+                }
+              }
+            ]
+          },
+          {
+            "table": { "schema": "public", "name": "payments" },
+            "object_relationships": [
+              {
+                "name": "user",
+                "using": { "foreign_key_constraint_on": "user_id" }
+              },
+              {
+                "name": "order",
+                "using": { "foreign_key_constraint_on": "order_id" }
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "order_id",
+                    "user_id",
+                    "provider",
+                    "amount",
+                    "currency",
+                    "status",
+                    "stripe_payment_intent_id",
+                    "stripe_payment_method",
+                    "created_at",
+                    "updated_at"
+                  ],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "allow_aggregations": true
+                }
+              }
+            ]
+          },
+          {
+            "table": { "schema": "public", "name": "inventory_reservations" },
+            "object_relationships": [
+              {
+                "name": "user",
+                "using": { "foreign_key_constraint_on": "user_id" }
+              },
+              {
+                "name": "product",
+                "using": { "foreign_key_constraint_on": "product_id" }
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "user",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "user_id",
+                    "product_id",
+                    "quantity",
+                    "status",
+                    "expires_at",
+                    "created_at"
+                  ],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "allow_aggregations": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

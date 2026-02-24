@@ -1,0 +1,8 @@
+- "!include public_products.yaml"
+- "!include public_cart_items.yaml"
+- "!include public_orders.yaml"
+- "!include public_order_items.yaml"
+- "!include public_shipping_addresses.yaml"
+- "!include public_payments.yaml"
+- "!include public_users.yaml"
+- "!include public_inventory_reservations.yaml"

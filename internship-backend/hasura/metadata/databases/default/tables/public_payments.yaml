@@ -1,0 +1,29 @@
+table:
+  name: payments
+  schema: public
+object_relationships:
+  - name: user
+    using:
+      foreign_key_constraint_on: user_id
+  - name: order
+    using:
+      foreign_key_constraint_on: order_id
+select_permissions:
+  - role: user
+    permission:
+      columns:
+        - id
+        - order_id
+        - user_id
+        - provider
+        - amount
+        - currency
+        - status
+        - stripe_payment_intent_id
+        - stripe_payment_method
+        - created_at
+        - updated_at
+      filter:
+        user_id:
+          _eq: X-Hasura-User-Id
+      allow_aggregations: true

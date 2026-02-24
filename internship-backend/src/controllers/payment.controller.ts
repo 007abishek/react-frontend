@@ -4,7 +4,7 @@ import { stripe, STRIPE_WEBHOOK_SECRET } from "../config/stripe";
 import PaymentModel from "../models/payment.model";
 import OrderModel from "../models/order.model";
 import InventoryModel from "../models/inventory.model";
-
+import { getWorkflowHandle } from "../temporal/client";
 // ─── POST /payments/stripe/intent ─────────────────────────────
 // Create Stripe PaymentIntent for checkout
 // ─────────────────────────────────────────────────────────────
@@ -132,41 +132,37 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
   try {
     switch (event.type) {
       case "payment_intent.succeeded": {
-        const paymentIntent = event.data.object;
-        
-        // Update payment status
-        const payment = await PaymentModel.updateStatus(
-          paymentIntent.id,
-          "succeeded",
-          paymentIntent.payment_method as string
-        );
+  const paymentIntent = event.data.object;
+  
+  // Update payment status
+  const payment = await PaymentModel.updateStatus(
+    paymentIntent.id,
+    "succeeded",
+    paymentIntent.payment_method as string
+  );
 
-        if (payment) {
-          // Update order status
-          const order = await OrderModel.getByOrderId(
-            paymentIntent.metadata.orderId,
-            parseInt(paymentIntent.metadata.userId)
-          );
+  if (payment) {
+    const orderId = paymentIntent.metadata.orderId;
+    
+    // ──────────────────────────────────────────────────────────
+    // SIGNAL TEMPORAL WORKFLOW
+    // ──────────────────────────────────────────────────────────
+    try {
+      const { getWorkflowHandle } = await import("../temporal/client");
+      const workflowHandle = await getWorkflowHandle(`order-${orderId}`);
+      await workflowHandle.signal('paymentCompleted', true);
+      console.log('✅ Workflow signaled: paymentCompleted');
+    } catch (err: any) {
+      console.error('⚠️ Failed to signal workflow:', err.message);
+      
+      // Fallback: manually update order status
+      await OrderModel.updateStatus(orderId, "confirmed");
+    }
+  }
 
-          if (order) {
-            await OrderModel.updateStatus(order.order_id, "confirmed");
-
-            // Confirm inventory reservations
-            // Get reservations for this order and confirm them
-            const reservations = await InventoryModel.getPendingByUser(
-              parseInt(paymentIntent.metadata.userId)
-            );
-            
-            if (reservations.length > 0) {
-              const reservationIds = reservations.map(r => r.id);
-              await InventoryModel.confirm(reservationIds);
-            }
-          }
-        }
-
-        console.log(`✅ Payment succeeded: ${paymentIntent.id}`);
-        break;
-      }
+  console.log(`✅ Payment succeeded: ${paymentIntent.id}`);
+  break;
+}
 
       case "payment_intent.payment_failed": {
         const paymentIntent = event.data.object;

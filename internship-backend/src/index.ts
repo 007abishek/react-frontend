@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -14,10 +14,12 @@ import inventoryModel from "./models/inventory.model";
 import orderRoutes from "./routes/orders";
 import paymentRoutes   from "./routes/payments"; 
 import { handleStripeWebhook } from "./controllers/payment.controller";
+import hasuraRoutes from "./routes/hasura";
 
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+app.set("trust proxy", 1);
 
 /* ============================================================
    MIDDLEWARE
@@ -25,18 +27,64 @@ const PORT = process.env.PORT || 3001;
 
 app.use(helmet());
 
+const allowedOrigins = new Set([
+  "http://localhost:5173",
+  "http://localhost:5174",
+  ...(process.env.FRONTEND_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? []),
+]);
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-    ],
+    origin: (origin, callback) => {
+      // Allow non-browser tools (no Origin header) and known local/dev frontend origins.
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.has(origin)) return callback(null, true);
+
+      // Allow Vite dev server from private LAN IPs on common ports.
+      const isPrivateLanViteOrigin =
+        /^http:\/\/(?:192\.168|10(?:\.\d{1,3}){3}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})(?::5173|:5174)?$/.test(origin);
+
+      if (isPrivateLanViteOrigin) return callback(null, true);
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );
 
+const enforceHttpsForPayments = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  const shouldEnforce =
+    process.env.NODE_ENV === "production" ||
+    process.env.ENFORCE_HTTPS_PAYMENTS === "true";
+
+  if (!shouldEnforce) {
+    next();
+    return;
+  }
+
+  const forwardedProtoHeader = req.headers["x-forwarded-proto"];
+  const forwardedProto = Array.isArray(forwardedProtoHeader)
+    ? forwardedProtoHeader[0]
+    : forwardedProtoHeader;
+
+  const isSecure =
+    req.secure ||
+    forwardedProto?.split(",")[0]?.trim().toLowerCase() === "https";
+
+  if (isSecure) {
+    next();
+    return;
+  }
+
+  res.status(426).json({ message: "HTTPS required for payment endpoints" });
+};
+
 app.post(
   "/payments/stripe/webhook",
+  enforceHttpsForPayments,
   express.raw({ type: "application/json" }),
   handleStripeWebhook
 );
@@ -53,7 +101,8 @@ app.use("/products", productRoutes);
 app.use("/cart", cartRoutes);
 app.use("/inventory", inventoryRoutes);
 app.use("/orders",orderRoutes);
-app.use("/payments",paymentRoutes);
+app.use("/payments", enforceHttpsForPayments, paymentRoutes);
+app.use("/hasura", hasuraRoutes);
 /* ============================================================
    HEALTH CHECK
 ============================================================ */

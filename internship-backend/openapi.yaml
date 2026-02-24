@@ -1,0 +1,797 @@
+openapi: 3.0.3
+info:
+  title: Internship E-commerce Backend API
+  version: 1.0.0
+  description: |
+    OpenAPI spec for the Express backend.
+    Includes Auth, Products, Cart, Inventory, Orders, and Payments endpoints.
+
+servers:
+  - url: http://localhost:3001
+    description: Local development
+  - url: https://api.example.com
+    description: Production (replace with your domain)
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Products
+  - name: Cart
+  - name: Inventory
+  - name: Orders
+  - name: Payments
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+      required: [status]
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        external_id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        category:
+          type: string
+        thumbnail:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        rating:
+          type: number
+        stock:
+          type: integer
+        brand:
+          type: string
+      required:
+        - id
+        - title
+        - price
+        - category
+
+    ProductListResponse:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        total:
+          type: integer
+        skip:
+          type: integer
+        limit:
+          type: integer
+      required: [products, total, skip, limit]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        uid:
+          type: string
+        email:
+          type: string
+          nullable: true
+        provider:
+          type: string
+          enum: [password, google, github, guest]
+        isGuest:
+          type: boolean
+      required: [id, uid, provider, isGuest]
+
+    AuthLoginRequest:
+      type: object
+      properties:
+        firebaseIdToken:
+          type: string
+      required: [firebaseIdToken]
+
+    AuthLoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required: [token, user]
+
+    CartItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Product ID
+        cartId:
+          type: integer
+        title:
+          type: string
+        price:
+          type: number
+        thumbnail:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        quantity:
+          type: integer
+      required: [id, title, price, quantity]
+
+    CartResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        total:
+          type: integer
+      required: [items, total]
+
+    AddressInput:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        addressLine1:
+          type: string
+        addressLine2:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        pincode:
+          type: string
+      required: [fullName, phone, email, addressLine1, city, state, pincode]
+
+    OrderItemInput:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        price:
+          type: number
+        thumbnail:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        quantity:
+          type: integer
+      required: [id, title, price, quantity]
+
+    CreateOrderRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemInput"
+        address:
+          $ref: "#/components/schemas/AddressInput"
+        paymentMethod:
+          type: string
+          enum: [cod, card, upi, stripe]
+        total:
+          type: number
+        orderId:
+          type: string
+        orderDate:
+          type: string
+          format: date-time
+      required: [items, address, paymentMethod]
+
+    ReservationItemInput:
+      type: object
+      properties:
+        productId:
+          type: integer
+        quantity:
+          type: integer
+      required: [productId, quantity]
+
+    StripeIntentRequest:
+      type: object
+      properties:
+        orderId:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+          example: inr
+      required: [orderId, amount]
+
+    StripeConfirmRequest:
+      type: object
+      properties:
+        orderId:
+          type: string
+        paymentIntentId:
+          type: string
+      required: [orderId, paymentIntentId]
+
+    CodConfirmRequest:
+      type: object
+      properties:
+        orderId:
+          type: string
+      required: [orderId]
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with Firebase ID token and receive backend JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthLoginRequest"
+      responses:
+        "200":
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthLoginResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user from JWT
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+                required: [user]
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/hasura-token:
+    post:
+      tags: [Auth]
+      summary: Create Hasura JWT for GraphQL access
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Hasura token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                required: [token]
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server/config error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /products:
+    get:
+      tags: [Products]
+      summary: Get all products
+      responses:
+        "200":
+          description: Product list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductListResponse"
+
+  /products/{id}:
+    get:
+      tags: [Products]
+      summary: Get product by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /products/category/{name}:
+    get:
+      tags: [Products]
+      summary: Get products by category
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Product list in category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductListResponse"
+
+  /products/search:
+    get:
+      tags: [Products]
+      summary: Search products by query
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductListResponse"
+
+  /products/top-rated:
+    get:
+      tags: [Products]
+      summary: Get top-rated products
+      parameters:
+        - name: minRating
+          in: query
+          required: false
+          schema:
+            type: number
+            default: 4.5
+      responses:
+        "200":
+          description: Top-rated products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductListResponse"
+
+  /cart:
+    get:
+      tags: [Cart]
+      summary: Get current user cart
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartResponse"
+    post:
+      tags: [Cart]
+      summary: Add item to cart
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartItem"
+      responses:
+        "201":
+          description: Item added
+    delete:
+      tags: [Cart]
+      summary: Clear cart
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cart cleared
+
+  /cart/sync:
+    post:
+      tags: [Cart]
+      summary: Replace server cart from client cart
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/CartItem"
+              required: [items]
+      responses:
+        "200":
+          description: Cart synced
+
+  /cart/{cartId}:
+    put:
+      tags: [Cart]
+      summary: Update cart item quantity
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cartId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+              required: [quantity]
+      responses:
+        "200":
+          description: Quantity updated
+    delete:
+      tags: [Cart]
+      summary: Remove cart item
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cartId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Item removed
+
+  /inventory/reserve:
+    post:
+      tags: [Inventory]
+      summary: Reserve inventory for checkout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ReservationItemInput"
+              required: [items]
+      responses:
+        "201":
+          description: Inventory reserved
+
+  /inventory/confirm:
+    post:
+      tags: [Inventory]
+      summary: Confirm reservation (reduce stock)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reservationIds:
+                  type: array
+                  items:
+                    type: integer
+              required: [reservationIds]
+      responses:
+        "200":
+          description: Reservation confirmed
+
+  /inventory/release:
+    post:
+      tags: [Inventory]
+      summary: Release reservation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reservationIds:
+                  type: array
+                  items:
+                    type: integer
+                reason:
+                  type: string
+                  enum: [expired, cancelled]
+              required: [reservationIds]
+      responses:
+        "200":
+          description: Reservation released
+
+  /inventory/check:
+    get:
+      tags: [Inventory]
+      summary: Check inventory availability
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: productId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: quantity
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: Availability status
+
+  /inventory/reservations:
+    get:
+      tags: [Inventory]
+      summary: Get pending reservations for user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Reservation list
+
+  /inventory/cleanup:
+    post:
+      tags: [Inventory]
+      summary: Cleanup expired reservations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cleanup complete
+
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Place order
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: Order placed
+    get:
+      tags: [Orders]
+      summary: Get user order history
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Orders list
+
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Get order detail by external order ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order detail
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments/stripe/intent:
+    post:
+      tags: [Payments]
+      summary: Create Stripe payment intent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeIntentRequest"
+      responses:
+        "201":
+          description: Payment intent created
+        "200":
+          description: Existing intent reused
+
+  /payments/stripe/confirm:
+    post:
+      tags: [Payments]
+      summary: Confirm Stripe payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeConfirmRequest"
+      responses:
+        "200":
+          description: Payment confirmed
+        "202":
+          description: Payment still processing
+
+  /payments/cod/confirm:
+    post:
+      tags: [Payments]
+      summary: Confirm cash-on-delivery payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CodConfirmRequest"
+      responses:
+        "200":
+          description: COD confirmed
+
+  /payments/{orderId}:
+    get:
+      tags: [Payments]
+      summary: Get payment status by order ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payment status
+        "404":
+          description: Payment or order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments/stripe/webhook:
+    post:
+      tags: [Payments]
+      summary: Stripe webhook endpoint
+      description: Expects Stripe-signed raw JSON body.
+      parameters:
+        - name: stripe-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event received
+        "400":
+          description: Invalid signature or malformed request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

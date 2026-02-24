@@ -108,4 +108,38 @@ router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
   });
 });
 
+router.post("/hasura-token", authenticate, (req: AuthRequest, res: Response) => {
+  const hasuraJwtSecret = process.env.HASURA_JWT_SECRET;
+  const user = req.user;
+
+  if (!hasuraJwtSecret) {
+    res.status(500).json({ message: "HASURA_JWT_SECRET is not configured" });
+    return;
+  }
+
+  if (!user?.userId) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  const isGuest = Boolean(user.isGuest);
+  const defaultRole = isGuest ? "guest" : "user";
+  const allowedRoles = isGuest ? ["guest"] : ["user"];
+
+  const token = jwt.sign(
+    {
+      sub: String(user.uid),
+      "https://hasura.io/jwt/claims": {
+        "x-hasura-default-role": defaultRole,
+        "x-hasura-allowed-roles": allowedRoles,
+        "x-hasura-user-id": String(user.userId),
+      },
+    },
+    hasuraJwtSecret,
+    { expiresIn: "1h" }
+  );
+
+  res.json({ token });
+});
+
 export default router;

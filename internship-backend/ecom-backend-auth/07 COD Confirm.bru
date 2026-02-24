@@ -1,0 +1,22 @@
+meta {
+  name: 07 COD Confirm
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/payments/cod/confirm
+  body: json
+  auth: none
+}
+
+headers {
+  content-type: application/json
+  authorization: Bearer {{jwt}}
+}
+
+body:json {
+  {
+    "orderId": "{{orderId}}"
+  }
+}

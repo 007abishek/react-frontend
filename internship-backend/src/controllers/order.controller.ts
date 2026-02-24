@@ -1,20 +1,39 @@
 import { Response } from "express";
 import OrderModel from "../models/order.model";
-import InventoryModel from "../models/inventory.model";
 import CartModel from "../models/cart.model";
+import PaymentModel from "../models/payment.model";
 import { AuthRequest } from "../middleware/auth";
+import { startWorkflowIdempotent } from "../temporal/client";
 
-// ─── POST /orders ─────────────────────────────────────────────
-// Place order - matches frontend CheckoutPage contract
-// ─────────────────────────────────────────────────────────────
+function toPaymentStatus(paymentMethod: string, orderStatus: string, rawPaymentStatus?: string): string {
+  const normalizedMethod = paymentMethod.trim().toLowerCase();
+  if (normalizedMethod === "cod") return "not_required";
+
+  if (rawPaymentStatus) {
+    return rawPaymentStatus;
+  }
+
+  const normalizedOrderStatus = orderStatus.trim().toLowerCase();
+  if (normalizedOrderStatus === "cancelled") return "cancelled";
+  if (
+    normalizedOrderStatus === "confirmed" ||
+    normalizedOrderStatus === "processing" ||
+    normalizedOrderStatus === "shipped" ||
+    normalizedOrderStatus === "delivered"
+  ) {
+    return "succeeded";
+  }
+  return "pending";
+}
+
+// POST /orders (with Temporal workflow)
 export const createOrder = async (req: AuthRequest, res: Response) => {
   try {
-    const userId      = req.user?.userId!;
+    const userId = req.user?.userId!;
     const firebaseUid = req.user?.uid!;
-    
+
     const { items, address, paymentMethod, total, orderId, orderDate } = req.body;
 
-    // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({ message: "items array required" });
       return;
@@ -30,132 +49,170 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Generate orderId if not provided by frontend
     const finalOrderId = orderId || `ORD-${Date.now()}`;
 
-    // Map frontend cart items to order items format
     const orderItems = items.map((item: any) => ({
-      productId: item.id,        // frontend sends id
-      title:     item.title,
-      price:     item.price,
+      productId: item.id,
+      title: item.title,
+      price: item.price,
       thumbnail: item.thumbnail || item.images?.[0] || "",
-      quantity:  item.quantity,
+      quantity: item.quantity,
     }));
 
-    // Calculate totals
-    const subtotal = orderItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
+    const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-    // Reserve inventory
-    const reserveItems = orderItems.map(item => ({
-      productId: item.productId,
-      quantity:  item.quantity,
-    }));
-
-    const reservation = await InventoryModel.reserve(userId, reserveItems);
-
-    if (!reservation.success) {
-      res.status(409).json({ 
-        message: reservation.error || "Unable to reserve inventory" 
-      });
-      return;
-    }
-
-    // Create order in database
-    const order = await OrderModel.create({
+    await OrderModel.create({
       userId,
       firebaseUid,
-      orderId:       finalOrderId,
+      orderId: finalOrderId,
       paymentMethod,
-      items:         orderItems,
+      items: orderItems,
       address: {
-        fullName:     address.fullName,
-        phone:        address.phone,
-        email:        address.email,
+        fullName: address.fullName,
+        phone: address.phone,
+        email: address.email,
         addressLine1: address.addressLine1,
         addressLine2: address.addressLine2 || "",
-        city:         address.city,
-        state:        address.state,
-        pincode:      address.pincode,
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode,
       },
       subtotal,
       total: total || subtotal,
     });
 
-    // For COD, confirm reservation immediately
-    if (paymentMethod === "cod") {
-      const reservationIds = reservation.reservations!.map(r => r.id);
-      await InventoryModel.confirm(reservationIds);
-      await OrderModel.updateStatus(finalOrderId, "confirmed");
+    const workflowStartMode = (process.env.ORDER_WORKFLOW_START_MODE ?? "api").toLowerCase();
+    if (workflowStartMode !== "hasura") {
+      try {
+        const result = await startWorkflowIdempotent({
+          workflowType: "orderPlacementWorkflow",
+          workflowId: `order-${finalOrderId}`,
+          taskQueue: "ecommerce-orders",
+          args: [
+            {
+              userId,
+              orderId: finalOrderId,
+              email: address.email,
+              paymentMethod,
+              amount: Number(total || subtotal),
+              items: orderItems.map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+              })),
+              createOrderInput: {
+                userId,
+                firebaseUid,
+                orderId: finalOrderId,
+                paymentMethod,
+                items: orderItems,
+                address: {
+                  fullName: address.fullName,
+                  phone: address.phone,
+                  email: address.email,
+                  addressLine1: address.addressLine1,
+                  addressLine2: address.addressLine2 || "",
+                  city: address.city,
+                  state: address.state,
+                  pincode: address.pincode,
+                },
+                subtotal,
+                total: total || subtotal,
+              },
+            },
+          ],
+        });
+        console.log(
+          result.started
+            ? `Workflow started: order-${finalOrderId}`
+            : `Workflow already running: order-${finalOrderId}`
+        );
+      } catch (workflowError) {
+        const message =
+          workflowError instanceof Error ? workflowError.message : String(workflowError);
+        console.error("Failed to start workflow:", message);
+      }
     }
 
-    // Clear user's cart after successful order
     await CartModel.clearCart(userId);
 
-    // Return order data matching frontend expectation
     res.status(201).json({
       message: "Order placed successfully",
       order: {
-        orderId:       finalOrderId,
-        orderDate:     orderDate || new Date().toISOString(),
-        status:        paymentMethod === "cod" ? "confirmed" : "pending",
-        items:         orderItems,
+        orderId: finalOrderId,
+        orderDate: orderDate || new Date().toISOString(),
+        status: "pending",
+        orderStatus: "pending",
+        paymentStatus: toPaymentStatus(paymentMethod, "pending"),
+        items: orderItems,
         address,
         paymentMethod,
-        total:         total || subtotal,
+        total: total || subtotal,
       },
-      reservations: paymentMethod !== "cod" ? reservation.reservations : null,
     });
-
-  } catch (err: any) {
-    console.error("createOrder error:", err.message);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to create order";
+    console.error("createOrder error:", message);
     res.status(500).json({ message: "Failed to create order" });
   }
 };
 
-// ─── GET /orders ──────────────────────────────────────────────
-// Get user's order history
-// ─────────────────────────────────────────────────────────────
+// GET /orders
 export const getUserOrders = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId!;
     const orders = await OrderModel.getByUserId(userId);
+    const enrichedOrders = await Promise.all(
+      orders.map(async (order) => {
+        const payment = await PaymentModel.getByOrderId(order.id);
+        return {
+          ...order,
+          orderStatus: order.status,
+          paymentStatus: toPaymentStatus(order.payment_method, order.status, payment?.status),
+        };
+      })
+    );
 
     res.json({
-      orders,
-      count: orders.length,
+      orders: enrichedOrders,
+      count: enrichedOrders.length,
     });
-
-  } catch (err: any) {
-    console.error("getUserOrders error:", err.message);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to fetch orders";
+    console.error("getUserOrders error:", message);
     res.status(500).json({ message: "Failed to fetch orders" });
   }
 };
 
-// ─── GET /orders/:orderId ─────────────────────────────────────
-// Get single order details
-// ─────────────────────────────────────────────────────────────
+// GET /orders/:orderId
 export const getOrderById = async (req: AuthRequest, res: Response) => {
   try {
-    const userId  = req.user?.userId!;
+    const userId = req.user?.userId!;
     const rawOrderId = req.params.orderId;
+    const resolvedOrderId = Array.isArray(rawOrderId) ? rawOrderId[0] : rawOrderId;
 
-    const orderId=Array.isArray(rawOrderId)
-        ? rawOrderId[0]
-        : rawOrderId;
-    const order=await OrderModel.getByOrderId(orderId,userId);
+    if (!resolvedOrderId) {
+      res.status(400).json({ message: "Invalid orderId" });
+      return;
+    }
 
+    const order = await OrderModel.getByOrderId(resolvedOrderId, userId);
     if (!order) {
       res.status(404).json({ message: "Order not found" });
       return;
     }
 
-    res.json({ order });
+    const payment = await PaymentModel.getByOrderId(order.id);
 
-  } catch (err: any) {
-    console.error("getOrderById error:", err.message);
+    res.json({
+      order: {
+        ...order,
+        orderStatus: order.status,
+        paymentStatus: toPaymentStatus(order.payment_method, order.status, payment?.status),
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to fetch order";
+    console.error("getOrderById error:", message);
     res.status(500).json({ message: "Failed to fetch order" });
   }
 };

@@ -1,11 +1,12 @@
 
 
 services:
-
+  # ──────────────────────────────────────────────────────────────
+  # PostgreSQL Database
+  # ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: ecom_postgres
-    restart: unless-stopped
     environment:
       POSTGRES_USER: ecom_user
       POSTGRES_PASSWORD: ecom_pass
@@ -16,7 +17,28 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - ecom_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecom_user -d ecom_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  # ──────────────────────────────────────────────────────────────
+  # Temporal Workflow Engine
+  # ──────────────────────────────────────────────────────────────
   temporal:
     image: temporalio/auto-setup:1.22.4
     container_name: ecom_temporal
@@ -27,57 +49,253 @@ services:
       - POSTGRES_PWD=ecom_pass
       - POSTGRES_SEEDS=postgres
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-
     ports:
       - "7233:7233"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - ecom_network
     volumes:
       - ./temporal-config:/etc/temporal/config/dynamicconfig
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:7233 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
+  # ──────────────────────────────────────────────────────────────
+  # Temporal Web UI
+  # ──────────────────────────────────────────────────────────────
   temporal-ui:
     image: temporalio/ui:2.21.3
     container_name: ecom_temporal_ui
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS= http://localhost:3000
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
     ports:
-      - "8233:8080" 
+      - "8233:8080"
     depends_on:
-      - temporal
+      temporal:
+        condition: service_started
     networks:
       - ecom_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
-
-
-
-  api:
-    build: .
-    container_name: ecom_api
-    restart: unless-stopped
+  # ──────────────────────────────────────────────────────────────
+  # Hasura GraphQL Engine
+  # ──────────────────────────────────────────────────────────────
+  hasura:
+    image: hasura/graphql-engine:v2.36.0
+    container_name: ecom_hasura
+    ports:
+      - "8080:8080"
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://ecom_user:ecom_pass@postgres:5432/ecom_db
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET:-hasura_admin_secret_123}
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: anonymous
+      HASURA_ORDER_EVENT_WEBHOOK_URL: ${HASURA_ORDER_EVENT_WEBHOOK_URL}
+      HASURA_EVENT_SECRET: ${HASURA_EVENT_SECRET}
+      HASURA_GRAPHQL_JWT_SECRET: |
+        {
+          "type": "HS256",
+          "key": "${HASURA_JWT_SECRET}"
+        }
+      HASURA_GRAPHQL_CORS_DOMAIN: "*"
+    volumes:
+      - ./hasura/metadata:/hasura-metadata
     depends_on:
-      - postgres
-      - temporal
+      postgres:
+        condition: service_healthy
+    networks:
+      - ecom_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ──────────────────────────────────────────────────────────────
+  # Express API Server
+  # ──────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecom_api
     ports:
       - "3001:3001"
-    env_file:
-      - .env
     environment:
       - NODE_ENV=development
+      - PORT=3001
       - POSTGRES_URL=postgres://ecom_user:ecom_pass@postgres:5432/ecom_db
       - TEMPORAL_ADDRESS=temporal:7233
+      - JWT_SECRET=${JWT_SECRET}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL}
+      - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - HASURA_EVENT_SECRET=${HASURA_EVENT_SECRET}
+      - CLIENT_URL=${CLIENT_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      hasura:
+        condition: service_started
     volumes:
       - .:/app
       - /app/node_modules
     networks:
       - ecom_network
-    
-    command: sh -c "npm run build && npm start"
+    command: npm run dev
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ──────────────────────────────────────────────────────────────
+  # Temporal Worker
+  # ──────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecom_worker
+    environment:
+      - NODE_ENV=development
+      - POSTGRES_URL=postgres://ecom_user:ecom_pass@postgres:5432/ecom_db
+      - TEMPORAL_ADDRESS=temporal:7233
+      - JWT_SECRET=${JWT_SECRET}
+      - AWS_REGION=${AWS_REGION}
+      - EMAIL_LAMBDA_FUNCTION_NAME=${EMAIL_LAMBDA_FUNCTION_NAME}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+      - NODE_OPTIONS=--max-old-space-size=4096
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      api:
+        condition: service_started
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - ecom_network
+    command: npm run worker
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ──────────────────────────────────────────────────────────────
+  # pgAdmin (Optional - Database Management UI)
+  # ──────────────────────────────────────────────────────────────
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: ecom_pgadmin
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@admin.com
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #   ports:
+  #     - "5050:80"
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - ecom_network
+
+  # ──────────────────────────────────────────────────────────────
+  # Redis (Optional - Caching Layer)
+  # ──────────────────────────────────────────────────────────────
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: ecom_redis
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - ecom_network
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 256M
 
 networks:
   ecom_network:
     driver: bridge
+
 volumes:
   postgres_data:
+    driver: local

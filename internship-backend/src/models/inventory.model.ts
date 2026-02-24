@@ -53,7 +53,7 @@ const checkAvailability = async (
 };
 
 // ─── Reserve inventory for checkout ───────────────────────────
-// Creates pending reservations with 15-minute expiry
+// Creates pending reservations with 1-minute (test) expiry
 const reserve = async (
   userId: number,
   items: { productId: number; quantity: number }[]
@@ -76,9 +76,9 @@ const reserve = async (
       }
     }
     
-    // Create reservations (15 min TTL)
+    // Create reservations (1 min TTL (test))
     const reservations: ReservationRow[] = [];
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const expiresAt = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
     
     for (const item of items) {
       const result = await client.query<ReservationRow>(

@@ -1,76 +1,50 @@
 import { pool } from "../config/db";
 
-// ─── Types ────────────────────────────────────────────────────
 export interface OrderRow {
-  id:             number;
-  user_id:        number;
-  firebase_uid:   string;
-  order_id:       string;
-  status:         string;
+  id: number;
+  user_id: number;
+  firebase_uid: string;
+  order_id: string;
+  status: string;
   payment_method: string;
-  subtotal:       number;
-  total:          number;
-  created_at:     Date;
-  updated_at:     Date;
-}
-
-export interface OrderItemRow {
-  id:         number;
-  order_id:   number;
-  product_id: number;
-  title:      string;
-  price:      number;
-  thumbnail:  string;
-  quantity:   number;
-}
-
-export interface ShippingAddressRow {
-  id:            number;
-  order_id:      number;
-  full_name:     string;
-  phone:         string;
-  email:         string;
-  address_line1: string;
-  address_line2: string;
-  city:          string;
-  state:         string;
-  pincode:       string;
+  subtotal: number;
+  total: number;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface CreateOrderInput {
-  userId:        number;
-  firebaseUid:   string;
-  orderId:       string;
+  userId: number;
+  firebaseUid: string;
+  orderId: string;
   paymentMethod: string;
-  items:         Array<{
+  items: Array<{
     productId: number;
-    title:     string;
-    price:     number;
+    title: string;
+    price: number;
     thumbnail: string;
-    quantity:  number;
+    quantity: number;
   }>;
   address: {
-    fullName:     string;
-    phone:        string;
-    email:        string;
+    fullName: string;
+    phone: string;
+    email: string;
     addressLine1: string;
     addressLine2: string;
-    city:         string;
-    state:        string;
-    pincode:      string;
+    city: string;
+    state: string;
+    pincode: string;
   };
   subtotal: number;
-  total:    number;
+  total: number;
 }
 
-// ─── Create order with items and address ──────────────────────
 const create = async (input: CreateOrderInput): Promise<OrderRow> => {
   const client = await pool.connect();
-  
+
   try {
     await client.query("BEGIN");
-    
-    // 1. Insert order
+
     const orderResult = await client.query<OrderRow>(
       `INSERT INTO orders
          (user_id, firebase_uid, order_id, status, payment_method, subtotal, total)
@@ -85,30 +59,21 @@ const create = async (input: CreateOrderInput): Promise<OrderRow> => {
         input.total,
       ]
     );
-    
+
     const order = orderResult.rows[0];
-    
-    // 2. Insert order items (snapshot product data at order time)
+
     for (const item of input.items) {
       await client.query(
         `INSERT INTO order_items
            (order_id, product_id, title, price, thumbnail, quantity)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          order.id,
-          item.productId,
-          item.title,
-          item.price,
-          item.thumbnail,
-          item.quantity,
-        ]
+        [order.id, item.productId, item.title, item.price, item.thumbnail, item.quantity]
       );
     }
-    
-    // 3. Insert shipping address
+
     await client.query(
       `INSERT INTO shipping_addresses
-         (order_id, full_name, phone, email, address_line1, 
+         (order_id, full_name, phone, email, address_line1,
           address_line2, city, state, pincode)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
@@ -123,10 +88,9 @@ const create = async (input: CreateOrderInput): Promise<OrderRow> => {
         input.address.pincode,
       ]
     );
-    
+
     await client.query("COMMIT");
     return order;
-    
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -135,10 +99,9 @@ const create = async (input: CreateOrderInput): Promise<OrderRow> => {
   }
 };
 
-// ─── Get all orders for a user ────────────────────────────────
 const getByUserId = async (userId: number): Promise<any[]> => {
   const result = await pool.query(
-    `SELECT 
+    `SELECT
        o.*,
        json_agg(
          json_build_object(
@@ -157,17 +120,13 @@ const getByUserId = async (userId: number): Promise<any[]> => {
      ORDER BY o.created_at DESC`,
     [userId]
   );
-  
+
   return result.rows;
 };
 
-// ─── Get single order by order_id ─────────────────────────────
-const getByOrderId = async (
-  orderId: string,
-  userId: number
-): Promise<any | null> => {
+const getByOrderId = async (orderId: string, userId: number): Promise<any | null> => {
   const result = await pool.query(
-    `SELECT 
+    `SELECT
        o.*,
        json_agg(
          json_build_object(
@@ -196,15 +155,74 @@ const getByOrderId = async (
      GROUP BY o.id, sa.id`,
     [orderId, userId]
   );
-  
+
   return result.rows[0] || null;
 };
 
-// ─── Update order status ──────────────────────────────────────
-const updateStatus = async (
-  orderId: string,
-  status: string
-): Promise<void> => {
+const getByOrderIdAny = async (orderId: string): Promise<any | null> => {
+  const result = await pool.query(
+    `SELECT
+       o.*,
+       sa.email as shipping_email
+     FROM orders o
+     LEFT JOIN shipping_addresses sa ON sa.order_id = o.id
+     WHERE o.order_id = $1
+     LIMIT 1`,
+    [orderId]
+  );
+
+  return result.rows[0] || null;
+};
+
+const getWorkflowDataByOrderId = async (orderId: string): Promise<any | null> => {
+  const orderResult = await pool.query(
+    `SELECT
+       o.id,
+       o.user_id,
+       o.firebase_uid,
+       o.order_id,
+       o.created_at,
+       o.payment_method,
+       o.subtotal,
+       o.total,
+       sa.full_name,
+       sa.phone,
+       sa.email,
+       sa.address_line1,
+       sa.address_line2,
+       sa.city,
+       sa.state,
+       sa.pincode
+     FROM orders o
+     LEFT JOIN shipping_addresses sa ON sa.order_id = o.id
+     WHERE o.order_id = $1
+     LIMIT 1`,
+    [orderId]
+  );
+
+  const order = orderResult.rows[0];
+  if (!order) return null;
+
+  const itemsResult = await pool.query(
+    `SELECT
+       product_id,
+       title,
+       price,
+       thumbnail,
+       quantity
+     FROM order_items
+     WHERE order_id = $1
+     ORDER BY id ASC`,
+    [order.id]
+  );
+
+  return {
+    ...order,
+    items: itemsResult.rows,
+  };
+};
+
+const updateStatus = async (orderId: string, status: string): Promise<void> => {
   await pool.query(
     `UPDATE orders
      SET status = $1, updated_at = NOW()
@@ -217,5 +235,7 @@ export default {
   create,
   getByUserId,
   getByOrderId,
+  getByOrderIdAny,
+  getWorkflowDataByOrderId,
   updateStatus,
 };
