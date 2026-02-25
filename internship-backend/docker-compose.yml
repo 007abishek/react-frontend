@@ -59,7 +59,7 @@ services:
     volumes:
       - ./temporal-config:/etc/temporal/config/dynamicconfig
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:7233 || exit 1"]
+      test: ["CMD-SHELL", "pgrep -f temporal-server > /dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -114,9 +114,9 @@ services:
       HASURA_GRAPHQL_DEV_MODE: "true"
       HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_SECRET:-hasura_admin_secret_123}
-      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: anonymous
       HASURA_ORDER_EVENT_WEBHOOK_URL: ${HASURA_ORDER_EVENT_WEBHOOK_URL}
       HASURA_EVENT_SECRET: ${HASURA_EVENT_SECRET}
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: anonymous
       HASURA_GRAPHQL_JWT_SECRET: |
         {
           "type": "HS256",
@@ -132,7 +132,7 @@ services:
       - ecom_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz > /dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -173,8 +173,11 @@ services:
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      - HASURA_EVENT_SECRET=${HASURA_EVENT_SECRET}
       - CLIENT_URL=${CLIENT_URL}
+
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -189,7 +192,11 @@ services:
       - ecom_network
     command: npm run dev
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://localhost:3001/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\"",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -221,12 +228,12 @@ services:
       - POSTGRES_URL=postgres://ecom_user:ecom_pass@postgres:5432/ecom_db
       - TEMPORAL_ADDRESS=temporal:7233
       - JWT_SECRET=${JWT_SECRET}
+      - NODE_OPTIONS=--max-old-space-size=4096
+
       - AWS_REGION=${AWS_REGION}
-      - EMAIL_LAMBDA_FUNCTION_NAME=${EMAIL_LAMBDA_FUNCTION_NAME}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
-      - NODE_OPTIONS=--max-old-space-size=4096
+      - AWS_LAMBDA_EMAIL_FUNCTION=${EMAIL_LAMBDA_FUNCTION_NAME}
     depends_on:
       postgres:
         condition: service_healthy

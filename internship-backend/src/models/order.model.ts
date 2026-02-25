@@ -62,14 +62,31 @@ const create = async (input: CreateOrderInput): Promise<OrderRow> => {
 
     const order = orderResult.rows[0];
 
-    for (const item of input.items) {
-      await client.query(
-        `INSERT INTO order_items
-           (order_id, product_id, title, price, thumbnail, quantity)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [order.id, item.productId, item.title, item.price, item.thumbnail, item.quantity]
-      );
-    }
+    const productIds = input.items.map((item) => item.productId);
+    const titles = input.items.map((item) => item.title);
+    const prices = input.items.map((item) => item.price);
+    const thumbnails = input.items.map((item) => item.thumbnail);
+    const quantities = input.items.map((item) => item.quantity);
+
+    await client.query(
+      `INSERT INTO order_items
+         (order_id, product_id, title, price, thumbnail, quantity)
+       SELECT
+         $1,
+         t.product_id,
+         t.title,
+         t.price,
+         t.thumbnail,
+         t.quantity
+       FROM unnest(
+         $2::int[],
+         $3::text[],
+         $4::numeric[],
+         $5::text[],
+         $6::int[]
+       ) AS t(product_id, title, price, thumbnail, quantity)`,
+      [order.id, productIds, titles, prices, thumbnails, quantities]
+    );
 
     await client.query(
       `INSERT INTO shipping_addresses
@@ -103,7 +120,8 @@ const getByUserId = async (userId: number): Promise<any[]> => {
   const result = await pool.query(
     `SELECT
        o.*,
-       json_agg(
+       lp.status AS payment_status,
+       COALESCE(json_agg(
          json_build_object(
            'id', oi.id,
            'productId', oi.product_id,
@@ -112,11 +130,18 @@ const getByUserId = async (userId: number): Promise<any[]> => {
            'thumbnail', oi.thumbnail,
            'quantity', oi.quantity
          )
-       ) as items
+       ) FILTER (WHERE oi.id IS NOT NULL), '[]'::json) as items
      FROM orders o
+     LEFT JOIN LATERAL (
+       SELECT p.status
+       FROM payments p
+       WHERE p.order_id = o.id
+       ORDER BY p.created_at DESC
+       LIMIT 1
+     ) lp ON TRUE
      LEFT JOIN order_items oi ON o.id = oi.order_id
      WHERE o.user_id = $1
-     GROUP BY o.id
+     GROUP BY o.id, lp.status
      ORDER BY o.created_at DESC`,
     [userId]
   );

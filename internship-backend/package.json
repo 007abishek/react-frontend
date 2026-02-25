@@ -11,7 +11,8 @@
     "seed": "ts-node src/scripts/seedProducts.ts",
     "seed:docker": "docker exec ecom_api npm run seed",
     "docker:bootstrap": "docker compose up -d --build && npm run seed:docker && powershell -ExecutionPolicy Bypass -File .\\restore-hasura.ps1",
-    "worker": "ts-node src/temporal/worker.ts"
+    "worker": "ts-node src/temporal/worker.ts",
+    "health:stack": "powershell -ExecutionPolicy Bypass -File .\\health-stack.ps1"
   },
   "keywords": [],
   "author": "",

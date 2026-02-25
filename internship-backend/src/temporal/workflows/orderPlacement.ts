@@ -9,6 +9,7 @@ import {
 import type * as activities from "../activities/order.activities";
 import type * as lambdaActivities from "../activities/lambda.activities";
 import type { CreateOrderInput } from "../../models/order.model";
+import { inventoryReleaseWorkflow } from "./inventoryRelease";
 
 const {
   validateInventoryActivity,
@@ -87,16 +88,16 @@ export async function orderPlacementWorkflow(
     // Activity: reserveInventory()
     reservationIds = await reserveInventoryActivity(input.userId, input.items);
 
-    // Fire inventory release timeout workflow (1 min (test))
-    await startChild("inventoryReleaseWorkflow", {
+    // Fire inventory release timeout workflow (5 min)
+    await startChild(inventoryReleaseWorkflow, {
       workflowId: `inventory-release-${input.orderId}`,
       taskQueue: "ecommerce-orders",
-      parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_ABANDON,
+      parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL,
       args: [
         {
           reservationIds,
           orderId: input.orderId,
-          waitMinutes: 1,
+          waitMinutes: 5,
         },
       ],
     });
@@ -117,9 +118,9 @@ export async function orderPlacementWorkflow(
     if (method === "cod") {
       paymentReceived = true;
     } else {
-      const completed = await condition(() => paymentReceived, "1 minute");
+      const completed = await condition(() => paymentReceived, "5 minutes");
       if (!completed) {
-        throw new Error("Payment timeout after 1 minute");
+        throw new Error("Payment timeout after 5 minutes");
       }
     }
 

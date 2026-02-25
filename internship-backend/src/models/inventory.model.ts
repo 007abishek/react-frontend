@@ -53,7 +53,7 @@ const checkAvailability = async (
 };
 
 // ─── Reserve inventory for checkout ───────────────────────────
-// Creates pending reservations with 1-minute (test) expiry
+// Creates pending reservations with 5-minute expiry
 const reserve = async (
   userId: number,
   items: { productId: number; quantity: number }[]
@@ -62,39 +62,92 @@ const reserve = async (
   
   try {
     await client.query("BEGIN");
-    
-    // Check availability for all items
+    const productIds = Array.from(new Set(items.map((item) => item.productId)));
+    const requestedByProduct = new Map<number, number>();
+
     for (const item of items) {
-      const check = await checkAvailability(item.productId, item.quantity);
-      
-      if (!check.available) {
+      requestedByProduct.set(
+        item.productId,
+        (requestedByProduct.get(item.productId) ?? 0) + item.quantity
+      );
+    }
+
+    const availabilityResult = await client.query<{
+      product_id: number;
+      current_stock: number;
+      reserved: number;
+    }>(
+      `WITH locked_products AS (
+         SELECT id, stock
+         FROM products
+         WHERE id = ANY($1)
+         FOR UPDATE
+       ),
+       reserved AS (
+         SELECT
+           product_id,
+           SUM(quantity)::int AS reserved
+         FROM inventory_reservations
+         WHERE status = 'pending' AND product_id = ANY($1)
+         GROUP BY product_id
+       )
+       SELECT
+         lp.id AS product_id,
+         lp.stock AS current_stock,
+         COALESCE(r.reserved, 0)::int AS reserved
+       FROM locked_products lp
+       LEFT JOIN reserved r ON r.product_id = lp.id`,
+      [productIds]
+    );
+
+    if (availabilityResult.rows.length !== productIds.length) {
+      await client.query("ROLLBACK");
+      return { success: false, error: "One or more products do not exist" };
+    }
+
+    const availabilityMap = new Map(
+      availabilityResult.rows.map((row) => [row.product_id, row])
+    );
+
+    for (const [productId, requestedQty] of requestedByProduct) {
+      const availability = availabilityMap.get(productId);
+      if (!availability) {
+        await client.query("ROLLBACK");
+        return { success: false, error: `Product ${productId} does not exist` };
+      }
+
+      const availableQty = availability.current_stock - availability.reserved;
+      if (availableQty < requestedQty) {
         await client.query("ROLLBACK");
         return {
           success: false,
-          error: `Product ${item.productId} - only ${check.currentStock - check.reserved} available, requested ${item.quantity}`,
+          error: `Product ${productId} - only ${availableQty} available, requested ${requestedQty}`,
         };
       }
     }
-    
-    // Create reservations (1 min TTL (test))
-    const reservations: ReservationRow[] = [];
-    const expiresAt = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
-    
-    for (const item of items) {
-      const result = await client.query<ReservationRow>(
-        `INSERT INTO inventory_reservations
-           (user_id, product_id, quantity, status, expires_at)
-         VALUES ($1, $2, $3, 'pending', $4)
-         RETURNING *`,
-        [userId, item.productId, item.quantity, expiresAt]
-      );
-      
-      reservations.push(result.rows[0]);
-    }
+
+    // Create reservations (5 min TTL) in one query
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    const insertProductIds = items.map((item) => item.productId);
+    const insertQuantities = items.map((item) => item.quantity);
+
+    const reservationInsertResult = await client.query<ReservationRow>(
+      `INSERT INTO inventory_reservations
+         (user_id, product_id, quantity, status, expires_at)
+       SELECT
+         $1,
+         t.product_id,
+         t.quantity,
+         'pending',
+         $4
+       FROM unnest($2::int[], $3::int[]) AS t(product_id, quantity)
+       RETURNING *`,
+      [userId, insertProductIds, insertQuantities, expiresAt]
+    );
     
     await client.query("COMMIT");
     
-    return { success: true, reservations };
+    return { success: true, reservations: reservationInsertResult.rows };
     
   } catch (err) {
     await client.query("ROLLBACK");
@@ -114,10 +167,11 @@ const confirm = async (
   try {
     await client.query("BEGIN");
     
-    // Get all reservations
+    // Lock and read all pending reservations
     const reservations = await client.query<ReservationRow>(
       `SELECT * FROM inventory_reservations
-       WHERE id = ANY($1) AND status = 'pending'`,
+       WHERE id = ANY($1) AND status = 'pending'
+       FOR UPDATE`,
       [reservationIds]
     );
     
@@ -126,22 +180,37 @@ const confirm = async (
       return { success: false, error: "Some reservations not found or already processed" };
     }
     
-    // Reduce stock for each product
+    const requiredByProduct = new Map<number, number>();
     for (const reservation of reservations.rows) {
-      const updateRes= await client.query(
-        `UPDATE products
-         SET stock = stock - $1
-         WHERE id = $2 AND stock >= $1`,
-        [reservation.quantity, reservation.product_id]
+      requiredByProduct.set(
+        reservation.product_id,
+        (requiredByProduct.get(reservation.product_id) ?? 0) + reservation.quantity
       );
+    }
 
-      if(updateRes.rowCount ===0){
-        await client.query("ROLLBACK");
-        return{
-            success: false,
-            error: `Insufficient stock for product ${reservation.product_id}`,
-        };
-      }
+    const requiredProductIds = Array.from(requiredByProduct.keys());
+    const requiredQuantities = requiredProductIds.map(
+      (productId) => requiredByProduct.get(productId) ?? 0
+    );
+
+    const stockUpdateResult = await client.query(
+      `UPDATE products p
+       SET stock = p.stock - req.required_qty
+       FROM (
+         SELECT * FROM unnest($1::int[], $2::int[]) AS t(product_id, required_qty)
+       ) req
+       WHERE p.id = req.product_id
+         AND p.stock >= req.required_qty
+       RETURNING p.id`,
+      [requiredProductIds, requiredQuantities]
+    );
+
+    if ((stockUpdateResult.rowCount ?? 0) !== requiredProductIds.length) {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        error: "Insufficient stock for one or more products",
+      };
     }
     
     // Mark reservations as confirmed
@@ -210,7 +279,7 @@ const releaseExpired = async (): Promise<number> => {
 const getByIntentId = async (id: string): Promise<ReservationRow | null> => {
   const result = await pool.query<ReservationRow>(
     `SELECT * FROM inventory_reservations WHERE id = $1`,
-    [parseInt(id)]
+    [parseInt(id, 10)]
   );
   
   return result.rows[0] || null;
@@ -229,4 +298,5 @@ export default {
   releaseExpired,
   getByIntentId,
 };
+
 

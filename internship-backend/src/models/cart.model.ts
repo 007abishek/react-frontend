@@ -103,22 +103,35 @@ const syncCart = async (
       [userId]
     );
 
-    // Insert all items
-    for (const item of items) {
+    // Insert all items in one query
+    if (items.length > 0) {
+      const productIds = items.map((item) => item.product_id);
+      const titles = items.map((item) => item.title);
+      const prices = items.map((item) => item.price);
+      const thumbnails = items.map((item) => item.thumbnail);
+      const images = items.map((item) => item.images);
+      const quantities = items.map((item) => item.quantity);
+
       await client.query(
         `INSERT INTO cart_items
-           (user_id, product_id, title, price,
-            thumbnail, images, quantity)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          userId,
-          item.product_id,
-          item.title,
-          item.price,
-          item.thumbnail,
-          item.images,
-          item.quantity,
-        ]
+           (user_id, product_id, title, price, thumbnail, images, quantity)
+         SELECT
+           $1,
+           t.product_id,
+           t.title,
+           t.price,
+           t.thumbnail,
+           t.images,
+           t.quantity
+         FROM unnest(
+           $2::int[],
+           $3::text[],
+           $4::numeric[],
+           $5::text[],
+           $6::text[][],
+           $7::int[]
+         ) AS t(product_id, title, price, thumbnail, images, quantity)`,
+        [userId, productIds, titles, prices, thumbnails, images, quantities]
       );
     }
 

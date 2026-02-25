@@ -154,9 +154,7 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
       console.log('✅ Workflow signaled: paymentCompleted');
     } catch (err: any) {
       console.error('⚠️ Failed to signal workflow:', err.message);
-      
-      // Fallback: manually update order status
-      await OrderModel.updateStatus(orderId, "confirmed");
+      // Keep workflow as source of truth; do not force-confirm on signal failure.
     }
   }
 

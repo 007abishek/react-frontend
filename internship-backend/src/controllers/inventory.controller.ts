@@ -39,7 +39,7 @@ export const reserveInventory = async (req: AuthRequest, res: Response) => {
     res.status(201).json({
       message: "Inventory reserved",
       reservations: result.reservations,
-      expiresIn: "1 minute",
+      expiresIn: "5 minutes",
     });
 
   } catch (err: any) {

@@ -89,6 +89,14 @@ app.post(
   handleStripeWebhook
 );
 
+// Backward-compatible Stripe webhook path used by older CLI forwarding commands.
+app.post(
+  "/payments/stripe",
+  enforceHttpsForPayments,
+  express.raw({ type: "application/json" }),
+  handleStripeWebhook
+);
+
 app.use(express.json());
 app.use(morgan("dev"));
 

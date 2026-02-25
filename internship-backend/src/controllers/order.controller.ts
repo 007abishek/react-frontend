@@ -161,16 +161,11 @@ export const getUserOrders = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId!;
     const orders = await OrderModel.getByUserId(userId);
-    const enrichedOrders = await Promise.all(
-      orders.map(async (order) => {
-        const payment = await PaymentModel.getByOrderId(order.id);
-        return {
-          ...order,
-          orderStatus: order.status,
-          paymentStatus: toPaymentStatus(order.payment_method, order.status, payment?.status),
-        };
-      })
-    );
+    const enrichedOrders = orders.map((order) => ({
+      ...order,
+      orderStatus: order.status,
+      paymentStatus: toPaymentStatus(order.payment_method, order.status, order.payment_status),
+    }));
 
     res.json({
       orders: enrichedOrders,
