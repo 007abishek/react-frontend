@@ -1,10 +1,22 @@
 import ProductGrid from "./ProductGrid";
+import type { Product } from "../types";
+
+export interface ProductSectionConfig {
+  id: string;
+  type: "productGrid";
+  title: string;
+  enabled: boolean;
+  filter?: {
+    category?: string;
+    minRating?: number;
+  };
+}
 
 interface Props {
-  section: any;
-  products: any[];
+  section: ProductSectionConfig;
+  products: Product[];
   onProductClick: (id: number) => void;
-  onQuickAdd: (e: React.MouseEvent, product: any) => void;
+  onQuickAdd: (e: React.MouseEvent, product: Product) => void;
 }
 
 export default function ConfigRenderer({
@@ -13,8 +25,6 @@ export default function ConfigRenderer({
   onProductClick,
   onQuickAdd
 }: Props) {
-  console.log("✅ ConfigRenderer rendering section:", section);
-
   switch (section.type) {
     case "productGrid":
       return (
@@ -31,3 +41,4 @@ export default function ConfigRenderer({
       return null;
   }
 }
+

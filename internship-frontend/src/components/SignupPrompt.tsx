@@ -8,20 +8,20 @@ export default function SignupPrompt({
   const navigate = useNavigate();
 
   return (
-    <div className="fixed bottom-6 right-6 bg-black text-white p-4 rounded-lg shadow-lg z-50">
+    <div className="fixed bottom-3 left-3 right-3 z-50 rounded-lg bg-black p-4 text-white shadow-lg sm:bottom-6 sm:left-auto sm:right-6 sm:w-auto">
       <p className="mb-2">{message}</p>
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <button
           onClick={() => navigate("/signup")}
-          className="bg-blue-600 px-3 py-1 rounded"
+          className="rounded bg-blue-600 px-3 py-2"
         >
           Sign up
         </button>
 
         <button
           onClick={() => navigate("/login")}
-          className="border px-3 py-1 rounded"
+          className="rounded border px-3 py-2"
         >
           Login
         </button>

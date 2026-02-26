@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import * as jwt from "jsonwebtoken";
 import admin from "../config/firebase";
-import { pool } from "../config/db";
+import db from "../config/knex";
 import authenticate, { AuthRequest } from "../middleware/auth";
 
 const router = Router();
@@ -48,16 +48,20 @@ router.post("/login", async (req: Request<{}, {}, LoginBody>, res: Response) => 
 
     // 3. Save user to Postgres (or update if already exists)
     //    ON CONFLICT handles both new signup + returning login
-    const result = await pool.query<UserRow>(
-      `INSERT INTO users (firebase_uid, email, provider, is_guest)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (firebase_uid)
-       DO UPDATE SET email = EXCLUDED.email
-       RETURNING *`,
-      [decoded.uid, decoded.email ?? null, provider, isGuest]
-    );
+    const users = await db<UserRow>("users")
+      .insert({
+        firebase_uid: decoded.uid,
+        email: decoded.email ?? null,
+        provider,
+        is_guest: isGuest,
+      })
+      .onConflict("firebase_uid")
+      .merge({
+        email: decoded.email ?? null,
+      })
+      .returning("*");
 
-    const user = result.rows[0];
+    const user = users[0];
 
     // 4. Sign YOUR JWT with user info
     const token = jwt.sign(

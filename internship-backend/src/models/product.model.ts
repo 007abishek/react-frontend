@@ -1,4 +1,4 @@
-import { pool } from "../config/db";
+import db from "../config/knex";
 
 // ─── Types ────────────────────────────────────────────────────
 export interface ProductRow {
@@ -17,64 +17,103 @@ export interface ProductRow {
 
 // ─── Get all products ─────────────────────────────────────────
 const getAll = async (): Promise<ProductRow[]> => {
-  const res = await pool.query<ProductRow>(
-    `SELECT id, external_id, title, description, price, category,
-            thumbnail, images, rating, stock, brand
-     FROM products
-     ORDER BY id ASC`
-  );
-  return res.rows;
+  return db<ProductRow>("products")
+    .select(
+      "id",
+      "external_id",
+      "title",
+      "description",
+      "price",
+      "category",
+      "thumbnail",
+      "images",
+      "rating",
+      "stock",
+      "brand"
+    )
+    .orderBy("id", "asc");
 };
 
 // ─── Get products by category ─────────────────────────────────
 const getByCategory = async (category: string): Promise<ProductRow[]> => {
-  const res = await pool.query<ProductRow>(
-    `SELECT id, external_id, title, description, price, category,
-            thumbnail, images, rating, stock, brand
-     FROM products
-     WHERE LOWER(category) = LOWER($1)
-     ORDER BY id ASC`,
-    [category]
-  );
-  return res.rows;
+  return db<ProductRow>("products")
+    .select(
+      "id",
+      "external_id",
+      "title",
+      "description",
+      "price",
+      "category",
+      "thumbnail",
+      "images",
+      "rating",
+      "stock",
+      "brand"
+    )
+    .whereRaw("LOWER(category) = LOWER(?)", [category])
+    .orderBy("id", "asc");
 };
 
 // ─── Get single product by ID ─────────────────────────────────
 const getById = async (id: number): Promise<ProductRow | null> => {
-  const res = await pool.query<ProductRow>(
-    `SELECT id, external_id, title, description, price, category,
-            thumbnail, images, rating, stock, brand
-     FROM products
-     WHERE id = $1`,
-    [id]
-  );
-  return res.rows[0] || null;
+  const row = await db<ProductRow>("products")
+    .select(
+      "id",
+      "external_id",
+      "title",
+      "description",
+      "price",
+      "category",
+      "thumbnail",
+      "images",
+      "rating",
+      "stock",
+      "brand"
+    )
+    .where({ id })
+    .first();
+
+  return row ?? null;
 };
 
 // ─── Search products by title ─────────────────────────────────
 const search = async (q: string): Promise<ProductRow[]> => {
-  const res = await pool.query<ProductRow>(
-    `SELECT id, external_id, title, description, price, category,
-            thumbnail, images, rating, stock, brand
-     FROM products
-     WHERE LOWER(title) LIKE LOWER($1)
-     ORDER BY id ASC`,
-    [`%${q}%`]
-  );
-  return res.rows;
+  return db<ProductRow>("products")
+    .select(
+      "id",
+      "external_id",
+      "title",
+      "description",
+      "price",
+      "category",
+      "thumbnail",
+      "images",
+      "rating",
+      "stock",
+      "brand"
+    )
+    .whereRaw("LOWER(title) LIKE LOWER(?)", [`%${q}%`])
+    .orderBy("id", "asc");
 };
 
 // ─── Get top rated products ───────────────────────────────────
 const getTopRated = async (minRating: number): Promise<ProductRow[]> => {
-  const res = await pool.query<ProductRow>(
-    `SELECT id, external_id, title, description, price, category,
-            thumbnail, images, rating, stock, brand
-     FROM products
-     WHERE rating >= $1
-     ORDER BY rating DESC`,
-    [minRating]
-  );
-  return res.rows;
+  return db<ProductRow>("products")
+    .select(
+      "id",
+      "external_id",
+      "title",
+      "description",
+      "price",
+      "category",
+      "thumbnail",
+      "images",
+      "rating",
+      "stock",
+      "brand"
+    )
+    .where("rating", ">=", minRating)
+    .orderBy("rating", "desc");
 };
 
 // ─── Bulk insert (used by seed script) ───────────────────────
@@ -84,34 +123,31 @@ const bulkInsert = async (
   let inserted = 0;
 
   for (const p of products) {
-    await pool.query(
-      `INSERT INTO products
-        (external_id, title, description, price, category,
-         thumbnail, images, rating, stock, brand)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-       ON CONFLICT (external_id) DO UPDATE SET
-         title       = EXCLUDED.title,
-         description = EXCLUDED.description,
-         price       = EXCLUDED.price,
-         category    = EXCLUDED.category,
-         thumbnail   = EXCLUDED.thumbnail,
-         images      = EXCLUDED.images,
-         rating      = EXCLUDED.rating,
-         stock       = EXCLUDED.stock,
-         brand       = EXCLUDED.brand`,
-      [
-        p.external_id,
-        p.title,
-        p.description,
-        p.price,
-        p.category,
-        p.thumbnail,
-        p.images,
-        p.rating,
-        p.stock,
-        p.brand,
-      ]
-    );
+    await db("products")
+      .insert({
+        external_id: p.external_id,
+        title: p.title,
+        description: p.description,
+        price: p.price,
+        category: p.category,
+        thumbnail: p.thumbnail,
+        images: p.images,
+        rating: p.rating,
+        stock: p.stock,
+        brand: p.brand,
+      })
+      .onConflict("external_id")
+      .merge({
+        title: p.title,
+        description: p.description,
+        price: p.price,
+        category: p.category,
+        thumbnail: p.thumbnail,
+        images: p.images,
+        rating: p.rating,
+        stock: p.stock,
+        brand: p.brand,
+      });
     inserted++;
   }
 

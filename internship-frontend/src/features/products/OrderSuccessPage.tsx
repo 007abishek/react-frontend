@@ -15,14 +15,20 @@ export default function OrderSuccessPage() {
 
   if (!orderData) return null;
 
+  const parsedTotal = Number(orderData.total ?? orderData.subtotal ?? 0);
+  const safeTotal = Number.isFinite(parsedTotal) ? parsedTotal : 0;
+  const orderItems = Array.isArray(orderData.items) ? orderData.items : [];
+  const orderDateValue = orderData.orderDate ?? orderData.created_at ?? new Date().toISOString();
+  const paymentMethod = String(orderData.paymentMethod ?? orderData.payment_method ?? "").toLowerCase();
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4 py-8 sm:py-12">
       <div className="max-w-2xl w-full">
         {/* Success Animation */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-24 h-24 bg-green-600 rounded-full mb-6 animate-bounce">
+          <div className="mb-6 inline-flex h-20 w-20 items-center justify-center rounded-full bg-green-600 animate-bounce sm:h-24 sm:w-24">
             <svg
-              className="w-12 h-12 text-white"
+              className="h-10 w-10 text-white sm:h-12 sm:w-12"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -35,29 +41,29 @@ export default function OrderSuccessPage() {
               />
             </svg>
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">
+          <h1 className="mb-2 text-3xl font-bold text-white sm:text-4xl">
             Order Placed Successfully!
           </h1>
-          <p className="text-gray-400 text-lg">
+          <p className="text-base text-gray-400 sm:text-lg">
             Thank you for your purchase
           </p>
         </div>
 
         {/* Order Details Card */}
-        <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-8 border border-slate-700 shadow-2xl">
+        <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 shadow-2xl backdrop-blur-lg sm:p-8">
           {/* Order ID and Date */}
           <div className="border-b border-slate-700 pb-6 mb-6">
-            <div className="flex justify-between items-start mb-4">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-gray-400 text-sm mb-1">Order ID</p>
-                <p className="text-white font-mono text-lg font-semibold">
+                <p className="break-all text-base font-mono font-semibold text-white sm:text-lg">
                   {orderData.orderId}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="sm:text-right">
                 <p className="text-gray-400 text-sm mb-1">Order Date</p>
                 <p className="text-white">
-                  {new Date(orderData.orderDate).toLocaleDateString()}
+                  {new Date(orderDateValue).toLocaleDateString()}
                 </p>
               </div>
             </div>
@@ -112,10 +118,10 @@ export default function OrderSuccessPage() {
           <div className="mb-6">
             <h3 className="text-white font-semibold mb-3">Order Items</h3>
             <div className="space-y-3">
-              {orderData.items.map((item: any) => (
+              {orderItems.map((item: any, index: number) => (
                 <div
-                  key={item.id}
-                  className="flex gap-4 bg-slate-700/50 rounded-lg p-3"
+                  key={String(item.id ?? item.orderItemId ?? item.productId ?? `${item.title}-${index}`)}
+                  className="flex flex-col gap-3 rounded-lg bg-slate-700/50 p-3 sm:flex-row sm:gap-4"
                 >
                   <img
                     src={item.thumbnail || item.image}
@@ -131,7 +137,7 @@ export default function OrderSuccessPage() {
                     </p>
                   </div>
                   <div className="text-blue-400 font-semibold">
-                    ₹{(item.price * item.quantity).toFixed(2)}
+                    ₹{(Number(item.price || 0) * Number(item.quantity || 0)).toFixed(2)}
                   </div>
                 </div>
               ))}
@@ -144,7 +150,7 @@ export default function OrderSuccessPage() {
             <div className="space-y-2">
               <div className="flex justify-between text-gray-400">
                 <span>Subtotal</span>
-                <span>₹{orderData.total.toFixed(2)}</span>
+                <span>₹{safeTotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-gray-400">
                 <span>Delivery Charges</span>
@@ -152,14 +158,14 @@ export default function OrderSuccessPage() {
               </div>
               <div className="flex justify-between text-xl font-bold text-white pt-2 border-t border-slate-700">
                 <span>Total Paid</span>
-                <span className="text-blue-400">₹{orderData.total.toFixed(2)}</span>
+                <span className="text-blue-400">₹{safeTotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-gray-400 pt-2">
                 <span>Payment Method</span>
                 <span className="text-white capitalize">
-                  {orderData.paymentMethod === "cod"
+                  {paymentMethod === "cod"
                     ? "Cash on Delivery"
-                    : orderData.paymentMethod === "card"
+                    : paymentMethod === "card"
                     ? "Card Payment"
                     : "UPI Payment"}
                 </span>
@@ -197,7 +203,7 @@ export default function OrderSuccessPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
             <button
               onClick={() => navigate("/products")}
               className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-lg transition"
@@ -224,3 +230,4 @@ export default function OrderSuccessPage() {
     </div>
   );
 }
+

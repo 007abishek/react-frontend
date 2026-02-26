@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInAnonymously,
   fetchSignInMethodsForEmail,
   signOut,
@@ -12,7 +14,7 @@ import {
   githubProvider,
 } from "../../firebase/config";
 import { useNavigate, Link } from "react-router-dom";
-import { useAppDispatch } from "../../app/hooks";
+import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { loginSuccess } from "./authSlice";
 
 /* 🔑 Provider type (matches authSlice exactly) */
@@ -26,6 +28,11 @@ export default function Login() {
 
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { isAuthenticated, loading: authLoading } = useAppSelector((state) => state.auth);
+
+  const isMobileBrowser = /Mobi|Android|iPhone|iPad|iPod/i.test(
+    typeof navigator !== "undefined" ? navigator.userAgent : ""
+  );
 
   /* ---------------- VALIDATION ---------------- */
 
@@ -71,6 +78,19 @@ export default function Login() {
     }
   };
 
+  const getOAuthErrorMessage = (code: string) => {
+    switch (code) {
+      case "auth/popup-blocked":
+      case "auth/popup-closed-by-user":
+      case "auth/cancelled-popup-request":
+        return "Popup was blocked or closed. Please try again.";
+      case "auth/unauthorized-domain":
+        return "This domain is not authorized in Firebase Auth settings.";
+      default:
+        return "OAuth login failed. Try again.";
+    }
+  };
+
   /* ---------------- SUCCESS HANDLER ---------------- */
 
   const handleSuccess = (user: any, provider: AuthProvider) => {
@@ -84,6 +104,55 @@ export default function Login() {
     );
     navigate("/");
   };
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate("/", { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void (async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (!mounted || !result?.user) return;
+
+        const providerId = result.providerId ?? "";
+        const provider: AuthProvider =
+          providerId === "github.com" ? "github" : "google";
+        handleSuccess(result.user, provider);
+      } catch (err: any) {
+        if (!mounted) return;
+
+        if (err?.code === "auth/account-exists-with-different-credential") {
+          const accountEmail = err.customData?.email;
+          if (!accountEmail) {
+            setError("This email is already registered with another provider.");
+            return;
+          }
+
+          const methods = await fetchSignInMethodsForEmail(auth, accountEmail);
+          if (methods.includes("github.com")) {
+            setError(
+              "This email is already registered using GitHub. Please login with GitHub."
+            );
+            return;
+          }
+
+          setError("This email is already registered with another provider.");
+          return;
+        }
+
+        setError(getOAuthErrorMessage(err?.code ?? ""));
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   /* ---------------- LOGIN WITH EMAIL ---------------- */
 
@@ -115,6 +184,11 @@ export default function Login() {
   const loginGoogle = async () => {
     try {
       setLoading(true);
+      if (isMobileBrowser) {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+
       const res = await signInWithPopup(auth, googleProvider);
       handleSuccess(res.user, "google");
     } catch (err: any) {
@@ -130,7 +204,7 @@ export default function Login() {
           setError("This email is already registered with another provider.");
         }
       } else {
-        setError("Google login failed. Try again");
+        setError(getOAuthErrorMessage(err.code));
       }
     } finally {
       setLoading(false);
@@ -191,7 +265,7 @@ export default function Login() {
       <div className="relative z-10 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-purple-500/10 to-pink-500/20 blur-2xl" />
 
-        <div className="relative z-10 rounded-2xl bg-white/90 backdrop-blur-xl p-8 border border-white/20">
+        <div className="relative z-10 rounded-2xl border border-white/20 bg-white/90 p-5 backdrop-blur-xl sm:p-8">
           <h1 className="text-2xl font-semibold text-center text-slate-900 mb-6">
             Welcome back
           </h1>
@@ -253,7 +327,7 @@ export default function Login() {
             <div className="h-px flex-1 bg-slate-200" />
           </div>
 
-          <div className="flex gap-3 mb-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row">
             {/* 🎨 Google Button - Purple to Pink Gradient */}
             <button
               onClick={loginGoogle}

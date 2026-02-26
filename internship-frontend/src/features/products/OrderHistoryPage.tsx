@@ -1,11 +1,54 @@
+import { gql, useQuery } from "@apollo/client";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../../components/layout/AppLayout";
-import {
-  fetchOrderHistory,
-  subscribeOrderHistory,
-  type OrderSummary,
-} from "./hasuraCommerce";
+import { getHasuraToken } from "../../utils/hasuraClient";
+
+type OrderItem = {
+  title: string;
+  quantity: number;
+  price: number;
+};
+
+type Order = {
+  order_id: string;
+  status: string;
+  total: number;
+  created_at: string;
+  payment_method: string;
+  items: OrderItem[];
+};
+
+type GetUserOrdersData = {
+  orders: Order[];
+  orders_aggregate: {
+    aggregate: {
+      count: number;
+    } | null;
+  };
+};
+
+const GET_ORDERS = gql`
+  query GetUserOrders($limit: Int!, $offset: Int!, $where: orders_bool_exp!) {
+    orders(where: $where, order_by: { created_at: desc }, limit: $limit, offset: $offset) {
+      order_id
+      status
+      total
+      created_at
+      payment_method
+      items: order_items {
+        title
+        quantity
+        price
+      }
+    }
+    orders_aggregate(where: $where) {
+      aggregate {
+        count
+      }
+    }
+  }
+`;
 
 const ORDER_STATUS_STYLES: Record<string, string> = {
   confirmed: "bg-green-600/20 text-green-400",
@@ -21,14 +64,11 @@ function getOrderStatusStyle(status: string): string {
 }
 
 function getPaymentLabel(method: string): string {
-  if (method === "cod") return "Cash on Delivery";
-  if (method === "card") return "Card Payment";
-  if (method === "upi") return "UPI Payment";
+  const normalized = method.trim().toLowerCase();
+  if (normalized === "cod") return "Cash on Delivery";
+  if (normalized === "card") return "Card Payment";
+  if (normalized === "upi") return "UPI Payment";
   return method;
-}
-
-function isPendingStatus(status: string): boolean {
-  return status.trim().toLowerCase() === "pending";
 }
 
 function humanizeStatus(status: string): string {
@@ -40,58 +80,41 @@ function humanizeStatus(status: string): string {
 
 export default function OrderHistoryPage() {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [tokenReady, setTokenReady] = useState(false);
+  const [tokenError, setTokenError] = useState("");
   const [page, setPage] = useState(1);
-
   const PAGE_SIZE = 5;
-  const visibleOrders = orders.filter((order) => !isPendingStatus(order.status));
-  const totalPages = Math.max(1, Math.ceil(visibleOrders.length / PAGE_SIZE));
-  const start = (page - 1) * PAGE_SIZE;
-  const pagedOrders = visibleOrders.slice(start, start + PAGE_SIZE);
+  const where = { status: { _in: ["confirmed", "cancelled"] } };
 
   useEffect(() => {
     let mounted = true;
-    let unsubscribe: (() => void) | undefined;
 
-    const load = async () => {
-      try {
-        const data = await fetchOrderHistory();
-        if (mounted) setOrders(data);
-      } catch (err) {
-        console.error("Failed to fetch orders:", err);
-        if (mounted) setError("Failed to load order history.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    load();
-
-    subscribeOrderHistory(
-      (nextOrders) => {
+    void getHasuraToken()
+      .then(() => {
         if (!mounted) return;
-        setOrders(nextOrders);
-        const nextVisible = nextOrders.filter((order) => !isPendingStatus(order.status));
-        setPage((prev) => Math.min(prev, Math.max(1, Math.ceil(nextVisible.length / PAGE_SIZE))));
-      },
-      (err) => console.error("Order realtime subscription failed:", err)
-    )
-      .then((stop) => {
-        unsubscribe = stop;
+        setTokenReady(true);
       })
       .catch((err) => {
-        console.error("Order realtime setup failed:", err);
+        if (!mounted) return;
+        setTokenError(err instanceof Error ? err.message : "Failed to initialize Hasura auth");
       });
 
     return () => {
       mounted = false;
-      unsubscribe?.();
     };
   }, []);
 
-  if (loading) {
+  const { data, loading, error } = useQuery<GetUserOrdersData>(GET_ORDERS, {
+    fetchPolicy: "network-only",
+    skip: !tokenReady,
+    variables: {
+      limit: PAGE_SIZE,
+      offset: (page - 1) * PAGE_SIZE,
+      where,
+    },
+  });
+
+  if (!tokenReady || loading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-screen">
@@ -104,30 +127,40 @@ export default function OrderHistoryPage() {
     );
   }
 
+  if (tokenError) {
+    return (
+      <AppLayout>
+        <div className="text-center py-12">
+          <p className="text-red-400">Error loading orders: {tokenError}</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div className="text-center py-12">
+          <p className="text-red-400">Error loading orders: {error.message}</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const orders = data?.orders ?? [];
+  const totalCount = data?.orders_aggregate.aggregate?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-6 flex items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold text-white">Order History</h1>
-          <button
-            type="button"
-            onClick={() => navigate("/products")}
-            className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 transition"
-          >
-            Back to Products
-          </button>
-        </div>
+      <div className="mx-auto max-w-4xl px-2 py-6 sm:px-4 sm:py-8">
+        <h1 className="mb-6 text-2xl font-bold text-white sm:text-3xl">Order History (GraphQL)</h1>
 
-        {error && (
-          <div className="mb-5 rounded-lg border border-red-500/40 bg-red-600/10 p-3 text-sm text-red-300">
-            {error}
-          </div>
-        )}
-
-        {visibleOrders.length === 0 ? (
+        {orders.length === 0 ? (
           <div className="text-center py-12 bg-slate-800/50 rounded-2xl border border-slate-700">
             <p className="text-gray-400 mb-4">No orders yet</p>
             <button
+              type="button"
               onClick={() => navigate("/products")}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition"
             >
@@ -136,19 +169,19 @@ export default function OrderHistoryPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {pagedOrders.map((order) => (
+            {orders.map((order) => (
               <div
                 key={order.order_id}
                 onClick={() => navigate(`/orders/${order.order_id}`)}
                 className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-slate-700 cursor-pointer hover:bg-slate-700/50 transition"
               >
-                <div className="flex justify-between items-start mb-4">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-gray-400 text-sm">Order ID</p>
-                    <p className="text-white font-mono font-semibold">{order.order_id}</p>
+                    <p className="break-all font-mono font-semibold text-white">{order.order_id}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-gray-400 text-sm mb-1">Order Status</p>
+                  <div className="sm:text-right">
+                    <p className="text-gray-400 text-sm mb-1">Status</p>
                     <span
                       className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${getOrderStatusStyle(
                         order.status
@@ -160,18 +193,21 @@ export default function OrderHistoryPage() {
                 </div>
 
                 <div className="border-t border-slate-700 pt-4">
-                  <div className="flex justify-between items-center">
-                    <p className="text-gray-500 text-xs">
-                      {new Date(order.created_at).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </p>
-                    <div className="text-right">
-                      <p className="text-blue-400 font-bold text-xl">
-                        Rs {Number(order.total).toFixed(2)}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm mb-1">
+                        {order.items?.length ?? 0} item{(order.items?.length ?? 0) !== 1 ? "s" : ""}
                       </p>
+                      <p className="text-gray-500 text-xs">
+                        {new Date(order.created_at).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <div className="sm:text-right">
+                      <p className="text-xl font-bold text-blue-400">Rs {Number(order.total).toFixed(2)}</p>
                       <p className="text-gray-400 text-sm">{getPaymentLabel(order.payment_method)}</p>
                     </div>
                   </div>
@@ -179,7 +215,7 @@ export default function OrderHistoryPage() {
               </div>
             ))}
 
-            <div className="mt-6 flex items-center justify-between rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-3">
+            <div className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-slate-400">
                 Page {page} of {totalPages}
               </p>

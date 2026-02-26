@@ -5,7 +5,7 @@ import { setCart, clearCart } from "../products/cartSlice";
 import { loadCartForUser } from "../../utils/indexedDb";
 import type { AppDispatch } from "../../app/store";
 import { clearHasuraToken } from "../../utils/hasuraClient";
-import { fetchCart, syncCart } from "../products/hasuraCommerce";
+import { clearPaymentStatusCache, fetchCart, syncCart } from "../products/hasuraCommerce";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
@@ -14,6 +14,7 @@ export const startAuthListener = (dispatch: AppDispatch) => {
     if (!firebaseUser) {
       localStorage.removeItem("jwt");
       clearHasuraToken();
+      clearPaymentStatusCache();
       dispatch(logout());
       dispatch(clearCart());
       dispatch(authResolved());
@@ -34,6 +35,7 @@ export const startAuthListener = (dispatch: AppDispatch) => {
       await signOut(auth);
       localStorage.removeItem("jwt");
       clearHasuraToken();
+      clearPaymentStatusCache();
       dispatch(logout());
       dispatch(clearCart());
       dispatch(authResolved());
@@ -52,6 +54,7 @@ export const startAuthListener = (dispatch: AppDispatch) => {
         const data = await res.json();
         localStorage.setItem("jwt", data.token);
         clearHasuraToken();
+        clearPaymentStatusCache();
       }
     } catch (err) {
       console.warn("Backend auth exchange failed:", err);

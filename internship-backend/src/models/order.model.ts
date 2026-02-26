@@ -1,4 +1,5 @@
-import { pool } from "../config/db";
+import db from "../config/knex";
+import type { Knex } from "knex";
 
 export interface OrderRow {
   id: number;
@@ -39,221 +40,209 @@ export interface CreateOrderInput {
   total: number;
 }
 
-const create = async (input: CreateOrderInput): Promise<OrderRow> => {
-  const client = await pool.connect();
+const create = async (input: CreateOrderInput): Promise<OrderRow> =>
+  db.transaction(async (trx: Knex.Transaction) => {
+    const rows = (await trx("orders")
+      .insert({
+        user_id: input.userId,
+        firebase_uid: input.firebaseUid,
+        order_id: input.orderId,
+        status: "pending",
+        payment_method: input.paymentMethod,
+        subtotal: input.subtotal,
+        total: input.total,
+      })
+      .returning("*")) as OrderRow[];
 
-  try {
-    await client.query("BEGIN");
+    const order = rows[0];
 
-    const orderResult = await client.query<OrderRow>(
-      `INSERT INTO orders
-         (user_id, firebase_uid, order_id, status, payment_method, subtotal, total)
-       VALUES ($1, $2, $3, 'pending', $4, $5, $6)
-       RETURNING *`,
-      [
-        input.userId,
-        input.firebaseUid,
-        input.orderId,
-        input.paymentMethod,
-        input.subtotal,
-        input.total,
-      ]
-    );
+    if (input.items.length > 0) {
+      await trx("order_items").insert(
+        input.items.map((item) => ({
+          order_id: order.id,
+          product_id: item.productId,
+          title: item.title,
+          price: item.price,
+          thumbnail: item.thumbnail,
+          quantity: item.quantity,
+        }))
+      );
+    }
 
-    const order = orderResult.rows[0];
+    await trx("shipping_addresses").insert({
+      order_id: order.id,
+      full_name: input.address.fullName,
+      phone: input.address.phone,
+      email: input.address.email,
+      address_line1: input.address.addressLine1,
+      address_line2: input.address.addressLine2,
+      city: input.address.city,
+      state: input.address.state,
+      pincode: input.address.pincode,
+    });
 
-    const productIds = input.items.map((item) => item.productId);
-    const titles = input.items.map((item) => item.title);
-    const prices = input.items.map((item) => item.price);
-    const thumbnails = input.items.map((item) => item.thumbnail);
-    const quantities = input.items.map((item) => item.quantity);
-
-    await client.query(
-      `INSERT INTO order_items
-         (order_id, product_id, title, price, thumbnail, quantity)
-       SELECT
-         $1,
-         t.product_id,
-         t.title,
-         t.price,
-         t.thumbnail,
-         t.quantity
-       FROM unnest(
-         $2::int[],
-         $3::text[],
-         $4::numeric[],
-         $5::text[],
-         $6::int[]
-       ) AS t(product_id, title, price, thumbnail, quantity)`,
-      [order.id, productIds, titles, prices, thumbnails, quantities]
-    );
-
-    await client.query(
-      `INSERT INTO shipping_addresses
-         (order_id, full_name, phone, email, address_line1,
-          address_line2, city, state, pincode)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        order.id,
-        input.address.fullName,
-        input.address.phone,
-        input.address.email,
-        input.address.addressLine1,
-        input.address.addressLine2,
-        input.address.city,
-        input.address.state,
-        input.address.pincode,
-      ]
-    );
-
-    await client.query("COMMIT");
     return order;
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
-};
+  });
 
 const getByUserId = async (userId: number): Promise<any[]> => {
-  const result = await pool.query(
-    `SELECT
-       o.*,
-       lp.status AS payment_status,
-       COALESCE(json_agg(
-         json_build_object(
-           'id', oi.id,
-           'productId', oi.product_id,
-           'title', oi.title,
-           'price', oi.price,
-           'thumbnail', oi.thumbnail,
-           'quantity', oi.quantity
-         )
-       ) FILTER (WHERE oi.id IS NOT NULL), '[]'::json) as items
-     FROM orders o
-     LEFT JOIN LATERAL (
-       SELECT p.status
-       FROM payments p
-       WHERE p.order_id = o.id
-       ORDER BY p.created_at DESC
-       LIMIT 1
-     ) lp ON TRUE
-     LEFT JOIN order_items oi ON o.id = oi.order_id
-     WHERE o.user_id = $1
-     GROUP BY o.id, lp.status
-     ORDER BY o.created_at DESC`,
-    [userId]
-  );
+  const orders = await db<OrderRow>("orders")
+    .select("*")
+    .where({ user_id: userId })
+    .orderBy("created_at", "desc");
 
-  return result.rows;
+  if (orders.length === 0) return [];
+
+  const orderIds = orders.map((order: OrderRow) => order.id);
+
+  const items = await db("order_items")
+    .select("id", "order_id", "product_id", "title", "price", "thumbnail", "quantity")
+    .whereIn("order_id", orderIds)
+    .orderBy("id", "asc");
+
+  const latestPayments = await db("payments as p")
+    .select("p.order_id", "p.status")
+    .whereIn("p.order_id", orderIds)
+    .whereIn(
+      "p.id",
+      db("payments")
+        .select(db.raw("MAX(id)"))
+        .whereIn("order_id", orderIds)
+        .groupBy("order_id")
+    );
+
+  const itemsByOrder = new Map<number, any[]>();
+  for (const item of items) {
+    const list = itemsByOrder.get(item.order_id) ?? [];
+    list.push({
+      id: item.id,
+      productId: item.product_id,
+      title: item.title,
+      price: item.price,
+      thumbnail: item.thumbnail,
+      quantity: item.quantity,
+    });
+    itemsByOrder.set(item.order_id, list);
+  }
+
+  const paymentStatusByOrder = new Map<number, string>();
+  for (const payment of latestPayments) {
+    paymentStatusByOrder.set(payment.order_id, payment.status);
+  }
+
+  return orders.map((order: OrderRow) => ({
+    ...order,
+    payment_status: paymentStatusByOrder.get(order.id),
+    items: itemsByOrder.get(order.id) ?? [],
+  }));
 };
 
 const getByOrderId = async (orderId: string, userId: number): Promise<any | null> => {
-  const result = await pool.query(
-    `SELECT
-       o.*,
-       json_agg(
-         json_build_object(
-           'id', oi.id,
-           'productId', oi.product_id,
-           'title', oi.title,
-           'price', oi.price,
-           'thumbnail', oi.thumbnail,
-           'quantity', oi.quantity
-         )
-       ) as items,
-       json_build_object(
-         'fullName', sa.full_name,
-         'phone', sa.phone,
-         'email', sa.email,
-         'addressLine1', sa.address_line1,
-         'addressLine2', sa.address_line2,
-         'city', sa.city,
-         'state', sa.state,
-         'pincode', sa.pincode
-       ) as address
-     FROM orders o
-     LEFT JOIN order_items oi ON o.id = oi.order_id
-     LEFT JOIN shipping_addresses sa ON o.id = sa.order_id
-     WHERE o.order_id = $1 AND o.user_id = $2
-     GROUP BY o.id, sa.id`,
-    [orderId, userId]
-  );
+  const order = await db<OrderRow>("orders")
+    .select("*")
+    .where({ order_id: orderId, user_id: userId })
+    .first();
 
-  return result.rows[0] || null;
-};
-
-const getByOrderIdAny = async (orderId: string): Promise<any | null> => {
-  const result = await pool.query(
-    `SELECT
-       o.*,
-       sa.email as shipping_email
-     FROM orders o
-     LEFT JOIN shipping_addresses sa ON sa.order_id = o.id
-     WHERE o.order_id = $1
-     LIMIT 1`,
-    [orderId]
-  );
-
-  return result.rows[0] || null;
-};
-
-const getWorkflowDataByOrderId = async (orderId: string): Promise<any | null> => {
-  const orderResult = await pool.query(
-    `SELECT
-       o.id,
-       o.user_id,
-       o.firebase_uid,
-       o.order_id,
-       o.created_at,
-       o.payment_method,
-       o.subtotal,
-       o.total,
-       sa.full_name,
-       sa.phone,
-       sa.email,
-       sa.address_line1,
-       sa.address_line2,
-       sa.city,
-       sa.state,
-       sa.pincode
-     FROM orders o
-     LEFT JOIN shipping_addresses sa ON sa.order_id = o.id
-     WHERE o.order_id = $1
-     LIMIT 1`,
-    [orderId]
-  );
-
-  const order = orderResult.rows[0];
   if (!order) return null;
 
-  const itemsResult = await pool.query(
-    `SELECT
-       product_id,
-       title,
-       price,
-       thumbnail,
-       quantity
-     FROM order_items
-     WHERE order_id = $1
-     ORDER BY id ASC`,
-    [order.id]
-  );
+  const [items, address] = await Promise.all([
+    db("order_items")
+      .select("id", "product_id", "title", "price", "thumbnail", "quantity")
+      .where({ order_id: order.id })
+      .orderBy("id", "asc"),
+    db("shipping_addresses")
+      .select(
+        "full_name",
+        "phone",
+        "email",
+        "address_line1",
+        "address_line2",
+        "city",
+        "state",
+        "pincode"
+      )
+      .where({ order_id: order.id })
+      .first(),
+  ]);
 
   return {
     ...order,
-    items: itemsResult.rows,
+    items: items.map((item: any) => ({
+      id: item.id,
+      productId: item.product_id,
+      title: item.title,
+      price: item.price,
+      thumbnail: item.thumbnail,
+      quantity: item.quantity,
+    })),
+    address: address
+      ? {
+          fullName: address.full_name,
+          phone: address.phone,
+          email: address.email,
+          addressLine1: address.address_line1,
+          addressLine2: address.address_line2,
+          city: address.city,
+          state: address.state,
+          pincode: address.pincode,
+        }
+      : null,
+  };
+};
+
+const getByOrderIdAny = async (orderId: string): Promise<any | null> => {
+  const row = await db("orders as o")
+    .leftJoin("shipping_addresses as sa", "sa.order_id", "o.id")
+    .select("o.*", "sa.email as shipping_email")
+    .where("o.order_id", orderId)
+    .first();
+
+  return row ?? null;
+};
+
+const getWorkflowDataByOrderId = async (orderId: string): Promise<any | null> => {
+  const order = await db("orders as o")
+    .leftJoin("shipping_addresses as sa", "sa.order_id", "o.id")
+    .select(
+      "o.id",
+      "o.user_id",
+      "o.firebase_uid",
+      "o.order_id",
+      "o.created_at",
+      "o.payment_method",
+      "o.subtotal",
+      "o.total",
+      "sa.full_name",
+      "sa.phone",
+      "sa.email",
+      "sa.address_line1",
+      "sa.address_line2",
+      "sa.city",
+      "sa.state",
+      "sa.pincode"
+    )
+    .where("o.order_id", orderId)
+    .first();
+
+  if (!order) return null;
+
+  const items = await db("order_items")
+    .select("product_id", "title", "price", "thumbnail", "quantity")
+    .where({ order_id: order.id })
+    .orderBy("id", "asc");
+
+  return {
+    ...order,
+    items,
   };
 };
 
 const updateStatus = async (orderId: string, status: string): Promise<void> => {
-  await pool.query(
-    `UPDATE orders
-     SET status = $1, updated_at = NOW()
-     WHERE order_id = $2`,
-    [status, orderId]
-  );
+  await db("orders")
+    .where({ order_id: orderId })
+    .update({
+      status,
+      updated_at: db.fn.now(),
+    });
 };
 
 export default {

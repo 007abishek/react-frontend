@@ -1,4 +1,9 @@
-export const productsPageConfig = {
+import type { ProductSectionConfig } from "../components/ConfigRenderer";
+
+export const productsPageConfig: {
+  configVersion: string;
+  sections: ProductSectionConfig[];
+} = {
   configVersion: "1.0",
   sections: [
     {

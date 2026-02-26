@@ -107,7 +107,7 @@ export default function Signup() {
       <div className="absolute bottom-0 left-1/4 h-[300px] w-[300px] rounded-full bg-pink-500/20 blur-[120px]" />
 
       {/* 🧊 Signup Card */}
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white/90 backdrop-blur-xl p-8 shadow-2xl border border-white/20">
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/20 bg-white/90 p-5 shadow-2xl backdrop-blur-xl sm:p-8">
         <h1 className="text-2xl font-semibold text-center text-slate-900 mb-6">
           Create your account
         </h1>

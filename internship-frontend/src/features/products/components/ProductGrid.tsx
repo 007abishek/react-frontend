@@ -1,7 +1,8 @@
 import type { Product } from "../types";
+import type { ProductSectionConfig } from "./ConfigRenderer";
 
 interface Props {
-  section: any;
+  section: ProductSectionConfig;
   products: Product[];
   onProductClick: (id: number) => void;
   onQuickAdd: (e: React.MouseEvent, product: Product) => void;
@@ -38,14 +39,6 @@ export default function ProductGrid({
 
     return true;
   });
-  console.log(
-  "SECTION:",
-  section.title,
-  "CATEGORIES:",
-  filteredProducts.map(p => p.category)
-);
-
-
 
   // ✅ Empty section → don't render
   if (filteredProducts.length === 0) {

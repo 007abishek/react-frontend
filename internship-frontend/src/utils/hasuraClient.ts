@@ -1,3 +1,6 @@
+import { gql } from "@apollo/client";
+import { apolloClient } from "./apolloClient";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const HASURA_URL = import.meta.env.VITE_HASURA_URL || "http://localhost:8080/v1/graphql";
 
@@ -5,11 +8,6 @@ const HASURA_TOKEN_KEY = "hasura_jwt";
 
 type GraphQLError = {
   message: string;
-};
-
-type GraphQLResponse<T> = {
-  data?: T;
-  errors?: GraphQLError[];
 };
 
 type SubscriptionMessage<T> = {
@@ -65,38 +63,62 @@ export async function hasuraRequest<T>(
   variables?: Record<string, unknown>
 ): Promise<T> {
   let token = await getHasuraToken();
+  const document = gql(query);
+  const operationType = getOperationType(query);
 
   const run = async (jwt: string) => {
-    const res = await fetch(HASURA_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${jwt}`,
+    if (operationType === "mutation") {
+      const result = await apolloClient.mutate<T>({
+        mutation: document,
+        variables,
+        context: {
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+          },
+        },
+      });
+      if (!result.data) {
+        throw new Error("Hasura response missing data");
+      }
+      return result.data;
+    }
+
+    if (operationType !== "query") {
+      throw new Error("hasuraRequest supports only query and mutation operations");
+    }
+
+    const result = await apolloClient.query<T>({
+      query: document,
+      variables,
+      fetchPolicy: "no-cache",
+      context: {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
       },
-      body: JSON.stringify({ query, variables }),
     });
 
-    if (!res.ok) {
-      throw new Error(`Hasura request failed (${res.status})`);
-    }
-
-    const json = (await res.json()) as GraphQLResponse<T>;
-    if (json.errors?.length) {
-      throw new Error(json.errors[0].message);
-    }
-    if (!json.data) {
+    if (!result.data) {
       throw new Error("Hasura response missing data");
     }
-    return json.data;
+    return result.data;
   };
 
   try {
     return await run(token);
-  } catch (error) {
+  } catch {
     // One retry with a refreshed Hasura token (expired/stale token case).
     token = await getHasuraToken(true);
     return run(token);
   }
+}
+
+function getOperationType(query: string): "query" | "mutation" | "subscription" | null {
+  const normalized = query.trimStart().toLowerCase();
+  if (normalized.startsWith("query")) return "query";
+  if (normalized.startsWith("mutation")) return "mutation";
+  if (normalized.startsWith("subscription")) return "subscription";
+  return null;
 }
 
 export type Unsubscribe = () => void;

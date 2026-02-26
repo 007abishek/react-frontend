@@ -2,6 +2,13 @@ import { useState } from "react";
 import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 
 const MIN_CARD_PAYMENT_INR = 50;
+const PAYMENT_CONFIRMATION_TIMEOUT_MS = 60_000;
+const PAYMENT_CONFIRMATION_POLL_INTERVAL_MS = 2_000;
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:3001`
+    : "http://localhost:3001");
 
 interface BillingDetails {
   fullName: string;
@@ -52,6 +59,50 @@ export default function StripePaymentForm({
       return;
     }
     (onSuccess as (orderData: Record<string, unknown>) => void)(data);
+  };
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const waitForBackendConfirmation = async (orderId: string): Promise<Record<string, unknown>> => {
+    const jwt = localStorage.getItem("jwt");
+    if (!jwt) {
+      throw new Error("Session expired. Please login and check your order status.");
+    }
+
+    const deadline = Date.now() + PAYMENT_CONFIRMATION_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+      const response = await fetch(`${API_URL}/orders/${encodeURIComponent(orderId)}`, {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+      });
+
+      if (response.ok) {
+        const body = (await response.json()) as { order?: Record<string, unknown> };
+        const order = body.order;
+
+        if (order) {
+          const orderStatus = String(order.orderStatus ?? order.status ?? "").toLowerCase();
+          const paymentStatus = String(order.paymentStatus ?? "").toLowerCase();
+
+          if (
+            paymentStatus === "succeeded" &&
+            ["confirmed", "processing", "shipped", "delivered"].includes(orderStatus)
+          ) {
+            return order;
+          }
+
+          if (["failed", "cancelled"].includes(paymentStatus) || orderStatus === "cancelled") {
+            throw new Error("Payment was not confirmed by backend. Please try again.");
+          }
+        }
+      }
+
+      await sleep(PAYMENT_CONFIRMATION_POLL_INTERVAL_MS);
+    }
+
+    throw new Error("Payment received but backend confirmation is delayed. Check Order History in a moment.");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,11 +162,15 @@ export default function StripePaymentForm({
         throw new Error(`Payment status is ${paymentIntent.status}. Please try again.`);
       }
 
+      const orderId = typeof existingOrderData?.orderId === "string" ? existingOrderData.orderId : "";
+      const confirmedOrder = orderId ? await waitForBackendConfirmation(orderId) : null;
+
       emitSuccess({
         ...(existingOrderData || {}),
+        ...(confirmedOrder || {}),
         paymentMethod: "card",
         paymentIntentId: paymentIntent.id,
-        paymentStatus: paymentIntent.status,
+        paymentStatus: "succeeded",
       });
     } catch (err) {
       const message =

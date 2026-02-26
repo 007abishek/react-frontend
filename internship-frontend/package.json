@@ -12,6 +12,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@apollo/client": "^3.14.0",
     "@reduxjs/toolkit": "^2.11.2",
     "@sentry/react": "^10.38.0",
     "@sinclair/typebox": "^0.34.48",
@@ -19,6 +20,7 @@
     "@stripe/stripe-js": "^8.7.0",
     "ajv": "^8.17.1",
     "firebase": "^12.8.0",
+    "graphql": "^16.11.0",
     "idb": "^8.0.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

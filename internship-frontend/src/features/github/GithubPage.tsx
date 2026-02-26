@@ -42,7 +42,7 @@ export default function GithubPage() {
     <AppLayout>
       {/* ===== Header ===== */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           GitHub Search
         </h1>
         <p className="mt-1 text-slate-500">
@@ -51,7 +51,7 @@ export default function GithubPage() {
       </div>
 
       {/* ===== Mode Toggle ===== */}
-      <div className="mb-4 inline-flex rounded-lg bg-slate-100 dark:bg-zinc-800 p-1">
+      <div className="mb-4 grid grid-cols-2 rounded-lg bg-slate-100 p-1 dark:bg-zinc-800 sm:inline-flex">
         <button
           onClick={() => {
             setMode("users");
@@ -185,7 +185,7 @@ export default function GithubPage() {
 
       {/* ===== Pagination ===== */}
       {showResults && (usersData || reposData) && (
-        <div className="mt-6 flex items-center gap-4">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
           <button
             disabled={page === 1}
             onClick={() => setPage((p) => p - 1)}

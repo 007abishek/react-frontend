@@ -1,5 +1,6 @@
 import "dotenv/config";
-import { pool, initDb } from "../config/db";
+import { initDb, pool } from "../config/db";
+import db from "../config/knex";
 
 // ─── Categories to seed ───────────────────────────────────────
 const CATEGORIES = [
@@ -39,34 +40,31 @@ const fetchCategory = async (category: string): Promise<DummyProduct[]> => {
 
 // ─── Insert one product into Postgres ────────────────────────
 const insertProduct = async (p: DummyProduct): Promise<void> => {
-  await pool.query(
-    `INSERT INTO products
-       (external_id, title, description, price, category,
-        thumbnail, images, rating, stock, brand)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-     ON CONFLICT (external_id) DO UPDATE SET
-       title       = EXCLUDED.title,
-       description = EXCLUDED.description,
-       price       = EXCLUDED.price,
-       category    = EXCLUDED.category,
-       thumbnail   = EXCLUDED.thumbnail,
-       images      = EXCLUDED.images,
-       rating      = EXCLUDED.rating,
-       stock       = EXCLUDED.stock,
-       brand       = EXCLUDED.brand`,
-    [
-      p.id,
-      p.title,
-      p.description,
-      p.price,
-      p.category,
-      p.thumbnail,
-      p.images,
-      p.rating,
-      p.stock,
-      p.brand ?? "Unknown",
-    ]
-  );
+  await db("products")
+    .insert({
+      external_id: p.id,
+      title: p.title,
+      description: p.description,
+      price: p.price,
+      category: p.category,
+      thumbnail: p.thumbnail,
+      images: p.images,
+      rating: p.rating,
+      stock: p.stock,
+      brand: p.brand ?? "Unknown",
+    })
+    .onConflict("external_id")
+    .merge({
+      title: p.title,
+      description: p.description,
+      price: p.price,
+      category: p.category,
+      thumbnail: p.thumbnail,
+      images: p.images,
+      rating: p.rating,
+      stock: p.stock,
+      brand: p.brand ?? "Unknown",
+    });
 };
 
 // ─── Main seed function ───────────────────────────────────────
@@ -90,10 +88,10 @@ const seed = async (): Promise<void> => {
     }
 
     // 3. Verify
-    const result = await pool.query(
-      "SELECT COUNT(*) as count FROM products"
-    );
-    const count = result.rows[0].count;
+    const result = await db("products")
+      .count<{ count: string }>("* as count")
+      .first();
+    const count = result?.count ?? "0";
 
     console.log(`\n✅ Seed complete!`);
     console.log(`   Inserted/updated: ${totalInserted} products`);
@@ -103,6 +101,7 @@ const seed = async (): Promise<void> => {
     console.error("❌ Seed failed:", err.message);
     process.exit(1);
   } finally {
+    await db.destroy();
     await pool.end();
   }
 };

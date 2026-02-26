@@ -4,14 +4,15 @@ import FeatureCard from "../components/FeatureCard";
 export default function Home() {
   return (
     <AppLayout>
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
           <p className="mt-1 text-slate-500">Quick access to your features</p>
         </div>
 
         <button
           className="
+            w-full sm:w-auto
             rounded-md
             bg-red-500
             px-4 py-2

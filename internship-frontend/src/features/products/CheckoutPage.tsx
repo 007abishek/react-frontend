@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
@@ -10,6 +10,73 @@ const stripePromise = loadStripe(
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""
 );
 const hasStripeKey = Boolean(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:3001`
+    : "http://localhost:3001");
+
+const INDIAN_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry",
+];
+
+const COMMON_CITIES = [
+  "Mumbai",
+  "Delhi",
+  "Bengaluru",
+  "Hyderabad",
+  "Chennai",
+  "Kolkata",
+  "Pune",
+  "Ahmedabad",
+  "Jaipur",
+  "Surat",
+  "Lucknow",
+  "Kanpur",
+  "Nagpur",
+  "Indore",
+  "Bhopal",
+  "Patna",
+  "Ludhiana",
+  "Agra",
+  "Nashik",
+  "Vadodara",
+];
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -38,9 +105,89 @@ export default function CheckoutPage() {
     state: "",
     pincode: "",
   });
+  const [pincodeStatus, setPincodeStatus] = useState("");
+  const [pincodeCities, setPincodeCities] = useState<string[]>([]);
 
   // Payment State
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "card" | "upi">("cod");
+
+  const cityOptions = useMemo(() => {
+    const q = address.city.trim().toLowerCase();
+    const merged = [...COMMON_CITIES, ...pincodeCities];
+    const unique = Array.from(new Set(merged));
+
+    if (!q) return unique.slice(0, 20);
+    return unique.filter((city) => city.toLowerCase().includes(q)).slice(0, 20);
+  }, [address.city, pincodeCities]);
+
+  const stateOptions = useMemo(() => {
+    const q = address.state.trim().toLowerCase();
+    if (!q) return INDIAN_STATES;
+    return INDIAN_STATES.filter((state) => state.toLowerCase().includes(q));
+  }, [address.state]);
+
+  useEffect(() => {
+    const pincode = address.pincode.trim();
+
+    if (!/^\d{6}$/.test(pincode)) {
+      setPincodeStatus("");
+      setPincodeCities([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setPincodeStatus("Checking pincode...");
+        const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+        const result = (await response.json()) as Array<{
+          Status?: string;
+          PostOffice?: Array<{ Name?: string; District?: string; State?: string }>;
+        }>;
+
+        if (cancelled) return;
+
+        const first = result?.[0];
+        const offices = first?.PostOffice ?? [];
+
+        if (first?.Status !== "Success" || offices.length === 0) {
+          setPincodeStatus("Pincode not found. Please enter city and state manually.");
+          setPincodeCities([]);
+          return;
+        }
+
+        const suggestedCities = Array.from(
+          new Set(
+            offices
+              .map((office) => office.District?.trim() || office.Name?.trim() || "")
+              .filter(Boolean)
+          )
+        );
+
+        const firstOffice = offices[0];
+        const cityFromPincode =
+          firstOffice.District?.trim() || firstOffice.Name?.trim() || "";
+        const stateFromPincode = firstOffice.State?.trim() || "";
+
+        setPincodeCities(suggestedCities);
+        setAddress((prev) => ({
+          ...prev,
+          city: cityFromPincode || prev.city,
+          state: stateFromPincode || prev.state,
+        }));
+        setPincodeStatus("City and state auto-filled from pincode.");
+      } catch {
+        if (!cancelled) {
+          setPincodeStatus("Could not verify pincode right now. You can fill city/state manually.");
+        }
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [address.pincode]);
  
   
   
@@ -85,8 +232,6 @@ export default function CheckoutPage() {
         return;
       }
 
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
-      
       // Step 1: Create Order
       const orderRes = await fetch(`${API_URL}/orders`, {
         method: "POST",
@@ -152,7 +297,7 @@ export default function CheckoutPage() {
         setIsPlacing(false);
       }
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Order placement failed:", err);
       setError("Failed to place order. Please check your connection and try again.");
       setIsPlacing(false);
@@ -183,14 +328,14 @@ export default function CheckoutPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 px-4 py-6 sm:py-8">
       <div className="max-w-6xl mx-auto">
         {/* Progress Indicator */}
         <div className="mb-8">
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
             <div className="flex items-center">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold sm:h-10 sm:w-10 ${
                   step === "address"
                     ? "bg-blue-600 text-white"
                     : "bg-green-600 text-white"
@@ -207,11 +352,11 @@ export default function CheckoutPage() {
               </span>
             </div>
 
-            <div className="w-16 h-1 bg-slate-700"></div>
+            <div className="hidden h-1 w-10 bg-slate-700 sm:block sm:w-16"></div>
 
             <div className="flex items-center">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold sm:h-10 sm:w-10 ${
                   step === "payment"
                     ? "bg-blue-600 text-white"
                     : step === "review" || step === "stripe"
@@ -234,11 +379,11 @@ export default function CheckoutPage() {
               </span>
             </div>
 
-            <div className="w-16 h-1 bg-slate-700"></div>
+            <div className="hidden h-1 w-10 bg-slate-700 sm:block sm:w-16"></div>
 
             <div className="flex items-center">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold sm:h-10 sm:w-10 ${
                   step === "review" || step === "stripe"
                     ? "bg-blue-600 text-white"
                     : "bg-slate-700 text-gray-400"
@@ -305,8 +450,8 @@ export default function CheckoutPage() {
           <div className="lg:col-span-2">
             {/* Address Form */}
             {step === "address" && (
-              <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-slate-700">
-                <h2 className="text-2xl font-bold text-white mb-6">
+              <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6">
+                <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">
                   Shipping Address
                 </h2>
                 <form onSubmit={handleAddressSubmit} className="space-y-4">
@@ -369,6 +514,7 @@ export default function CheckoutPage() {
                     <input
                       type="text"
                       placeholder="City"
+                      list="city-options"
                       required
                       value={address.city}
                       onChange={(e) =>
@@ -376,9 +522,15 @@ export default function CheckoutPage() {
                       }
                       className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    <datalist id="city-options">
+                      {cityOptions.map((city) => (
+                        <option key={city} value={city} />
+                      ))}
+                    </datalist>
                     <input
                       type="text"
                       placeholder="State"
+                      list="state-options"
                       required
                       value={address.state}
                       onChange={(e) =>
@@ -386,6 +538,11 @@ export default function CheckoutPage() {
                       }
                       className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    <datalist id="state-options">
+                      {stateOptions.map((state) => (
+                        <option key={state} value={state} />
+                      ))}
+                    </datalist>
                     <input
                       type="text"
                       placeholder="Pincode"
@@ -397,6 +554,10 @@ export default function CheckoutPage() {
                       className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+
+                  {pincodeStatus && (
+                    <p className="text-xs text-slate-300">{pincodeStatus}</p>
+                  )}
 
                   <button
                     type="submit"
@@ -410,8 +571,8 @@ export default function CheckoutPage() {
 
             {/* Payment Form */}
             {step === "payment" && (
-              <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-slate-700">
-                <h2 className="text-2xl font-bold text-white mb-6">
+              <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6">
+                <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">
                   Payment Method
                 </h2>
                 <form onSubmit={handlePaymentSubmit} className="space-y-6">
@@ -480,7 +641,7 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
-                  <div className="flex gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
                     <button
                       type="button"
                       onClick={() => setStep("address")}
@@ -501,8 +662,8 @@ export default function CheckoutPage() {
 
             {/* Review Order */}
             {step === "review" && (
-              <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-slate-700">
-                <h2 className="text-2xl font-bold text-white mb-6">
+              <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6">
+                <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">
                   Review Your Order
                 </h2>
 
@@ -544,7 +705,7 @@ export default function CheckoutPage() {
                   </button>
                 </div>
 
-                <div className="flex gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
                   <button
                     onClick={() => setStep("payment")}
                     disabled={isPlacing}
@@ -592,8 +753,8 @@ export default function CheckoutPage() {
 
             {/* Stripe Payment Form */}
             {step === "stripe" && clientSecret && (
-              <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-slate-700">
-                <h2 className="text-2xl font-bold text-white mb-6">
+              <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6">
+                <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">
                   Complete Payment
                 </h2>
                 
@@ -642,7 +803,7 @@ export default function CheckoutPage() {
               </div>
             )}
             {step === "stripe" && !clientSecret && (
-              <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-red-500/40">
+              <div className="rounded-2xl border border-red-500/40 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6">
                 <h2 className="text-2xl font-bold text-white mb-3">Card Payment Unavailable</h2>
                 <p className="text-red-300 text-sm">
                   Unable to initialize Stripe card form. Please go back, review order, and try again.
@@ -659,7 +820,7 @@ export default function CheckoutPage() {
 
           {/* Right Side - Order Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-slate-700 sticky top-4">
+            <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6 lg:sticky lg:top-4">
               <h3 className="text-xl font-bold text-white mb-4">
                 Order Summary
               </h3>

@@ -1,34 +1,24 @@
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import AppLayout from "../../components/layout/AppLayout";
-import {
-  increaseQty,
-  decreaseQty,
-  removeFromCart,
-} from "./cartSlice";
-import {
-  selectCartItems,
-  selectCartTotal,
-} from "./cartSelectors";
+import { increaseQty, decreaseQty, removeFromCart } from "./cartSlice";
+import { selectCartItems, selectCartTotal } from "./cartSelectors";
 
 export default function CartPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  // ✅ SAFE selectors
   const cartItems = useAppSelector(selectCartItems);
   const totalAmount = useAppSelector(selectCartTotal);
 
   if (cartItems.length === 0) {
     return (
       <AppLayout>
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-bold mb-2">
-            Your Cart is Empty
-          </h2>
+        <div className="py-12 text-center">
+          <h2 className="mb-2 text-2xl font-bold">Your Cart is Empty</h2>
           <button
             onClick={() => navigate("/products")}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg"
+            className="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700"
           >
             Browse Products
           </button>
@@ -39,38 +29,36 @@ export default function CartPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Your Cart</h1>
+      <div className="mx-auto max-w-6xl px-1 sm:px-0">
+        <h1 className="mb-6 text-2xl font-bold sm:text-3xl">Your Cart</h1>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="grid gap-8 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
             {cartItems.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center gap-6 bg-white dark:bg-zinc-900 border rounded-xl p-6"
+                className="flex flex-col gap-4 rounded-xl border bg-white p-4 dark:bg-zinc-900 sm:flex-row sm:items-center sm:gap-6 sm:p-6"
               >
                 <img
                   src={item.images?.[0] ?? item.thumbnail}
                   alt={item.title}
-                  className="w-24 h-24 object-contain"
+                  className="h-24 w-24 self-start object-contain sm:self-auto"
                 />
 
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <h3 className="font-semibold">{item.title}</h3>
-                  <p className="text-blue-600 font-bold">
-                    ₹ {item.price}
-                  </p>
+                  <p className="font-bold text-blue-600">Rs {item.price}</p>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <button onClick={() => dispatch(decreaseQty(item.id))}>−</button>
+                  <button onClick={() => dispatch(decreaseQty(item.id))}>-</button>
                   <span>{item.quantity}</span>
                   <button onClick={() => dispatch(increaseQty(item.id))}>+</button>
                 </div>
 
                 <button
                   onClick={() => dispatch(removeFromCart(item.id))}
-                  className="text-red-500"
+                  className="self-start text-red-500 sm:self-auto"
                 >
                   Remove
                 </button>
@@ -78,15 +66,15 @@ export default function CartPage() {
             ))}
           </div>
 
-          <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl">
-            <div className="flex justify-between font-bold text-lg">
+          <div className="rounded-xl bg-white p-6 dark:bg-zinc-900">
+            <div className="flex justify-between text-lg font-bold">
               <span>Total</span>
-              <span>₹ {totalAmount.toFixed(2)}</span>
+              <span>Rs {totalAmount.toFixed(2)}</span>
             </div>
 
             <button
               onClick={() => navigate("/checkout")}
-              className="w-full mt-4 bg-blue-600 text-white py-3 rounded-lg"
+              className="mt-4 w-full rounded-lg bg-blue-600 py-3 text-white"
             >
               Proceed to Checkout
             </button>

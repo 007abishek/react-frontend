@@ -1,4 +1,4 @@
-import { pool } from "../config/db";
+import db from "../config/knex";
 
 // Payment row shape from `payments` table
 export interface PaymentRow {
@@ -29,25 +29,20 @@ const create = async (data: {
   const provider = data.provider ?? "stripe";
   const status = data.status ?? "pending";
 
-  const result = await pool.query<PaymentRow>(
-    `INSERT INTO payments
-       (order_id, user_id, provider, amount, currency,
-        stripe_payment_intent_id, stripe_payment_method, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING *`,
-    [
-      data.orderId,
-      data.userId,
+  const rows = await db<PaymentRow>("payments")
+    .insert({
+      order_id: data.orderId,
+      user_id: data.userId,
       provider,
-      data.amount,
-      data.currency,
-      data.stripePaymentIntentId ?? null,
-      data.stripePaymentMethod ?? null,
+      amount: data.amount,
+      currency: data.currency,
+      stripe_payment_intent_id: data.stripePaymentIntentId ?? null,
+      stripe_payment_method: data.stripePaymentMethod ?? null,
       status,
-    ]
-  );
+    })
+    .returning("*");
 
-  return result.rows[0];
+  return rows[0];
 };
 
 // Update payment by Stripe payment intent id
@@ -56,43 +51,43 @@ const updateStatus = async (
   status: string,
   paymentMethod?: string
 ): Promise<PaymentRow | null> => {
-  const result = await pool.query<PaymentRow>(
-    `UPDATE payments
-     SET status = $1,
-         stripe_payment_method = COALESCE($2, stripe_payment_method),
-         updated_at = NOW()
-     WHERE stripe_payment_intent_id = $3
-     RETURNING *`,
-    [status, paymentMethod, paymentIntentId]
-  );
+  const patch: Record<string, unknown> = {
+    status,
+    updated_at: db.fn.now(),
+  };
+  if (paymentMethod !== undefined) {
+    patch.stripe_payment_method = paymentMethod;
+  }
 
-  return result.rows[0] || null;
+  const rows = await db<PaymentRow>("payments")
+    .where({ stripe_payment_intent_id: paymentIntentId })
+    .update(patch)
+    .returning("*");
+
+  return rows[0] ?? null;
 };
 
 // Get payment by Stripe payment intent id
 const getByIntentId = async (
   paymentIntentId: string
 ): Promise<PaymentRow | null> => {
-  const result = await pool.query<PaymentRow>(
-    `SELECT * FROM payments
-     WHERE stripe_payment_intent_id = $1`,
-    [paymentIntentId]
-  );
+  const row = await db<PaymentRow>("payments")
+    .select("*")
+    .where({ stripe_payment_intent_id: paymentIntentId })
+    .first();
 
-  return result.rows[0] || null;
+  return row ?? null;
 };
 
 // Get latest payment for DB order id
 const getByOrderId = async (orderId: number): Promise<PaymentRow | null> => {
-  const result = await pool.query<PaymentRow>(
-    `SELECT * FROM payments
-     WHERE order_id = $1
-     ORDER BY created_at DESC
-     LIMIT 1`,
-    [orderId]
-  );
+  const row = await db<PaymentRow>("payments")
+    .select("*")
+    .where({ order_id: orderId })
+    .orderBy("created_at", "desc")
+    .first();
 
-  return result.rows[0] || null;
+  return row ?? null;
 };
 
 // Update latest payment for DB order id
@@ -105,30 +100,33 @@ const updateByOrderId = async (
     stripePaymentIntentId?: string | null;
   }
 ): Promise<PaymentRow | null> => {
-  const result = await pool.query<PaymentRow>(
-    `UPDATE payments
-     SET status = COALESCE($2, status),
-         provider = COALESCE($3, provider),
-         stripe_payment_method = COALESCE($4, stripe_payment_method),
-         stripe_payment_intent_id = COALESCE($5, stripe_payment_intent_id),
-         updated_at = NOW()
-     WHERE id = (
-       SELECT id FROM payments
-       WHERE order_id = $1
-       ORDER BY created_at DESC
-       LIMIT 1
-     )
-     RETURNING *`,
-    [
-      orderId,
-      updates.status ?? null,
-      updates.provider ?? null,
-      updates.stripePaymentMethod ?? null,
-      updates.stripePaymentIntentId ?? null,
-    ]
-  );
+  const latest = await db("payments")
+    .select("id")
+    .where({ order_id: orderId })
+    .orderBy("created_at", "desc")
+    .first();
 
-  return result.rows[0] || null;
+  if (!latest) return null;
+
+  const patch: Record<string, unknown> = {
+    updated_at: db.fn.now(),
+  };
+
+  if (updates.status != null) patch.status = updates.status;
+  if (updates.provider != null) patch.provider = updates.provider;
+  if (updates.stripePaymentMethod != null) {
+    patch.stripe_payment_method = updates.stripePaymentMethod;
+  }
+  if (updates.stripePaymentIntentId != null) {
+    patch.stripe_payment_intent_id = updates.stripePaymentIntentId;
+  }
+
+  const rows = await db<PaymentRow>("payments")
+    .where({ id: latest.id })
+    .update(patch)
+    .returning("*");
+
+  return rows[0] ?? null;
 };
 
 export default {

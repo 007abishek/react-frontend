@@ -165,10 +165,10 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        <div className="bg-slate-800 rounded-lg p-6">
+        <div className="rounded-lg bg-slate-800 p-4 sm:p-6">
           <div className="border-b border-slate-700 pb-4 mb-4">
-            <h1 className="text-2xl font-bold text-white mb-2">Order Details</h1>
-            <p className="text-gray-400">Order ID: {detail.order.order_id}</p>
+            <h1 className="mb-2 text-xl font-bold text-white sm:text-2xl">Order Details</h1>
+            <p className="break-all text-gray-400">Order ID: {detail.order.order_id}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-400">Order</span>
               <span
@@ -201,7 +201,7 @@ export default function OrderDetailPage() {
             <h3 className="text-white font-semibold mb-2">Order Items</h3>
             <div className="space-y-3">
               {detail.items.map((item) => (
-                <div key={item.id} className="flex gap-4 bg-slate-700/50 rounded-lg p-3">
+                <div key={item.id} className="flex flex-col gap-3 rounded-lg bg-slate-700/50 p-3 sm:flex-row sm:items-start sm:gap-4">
                   <img
                     src={item.thumbnail}
                     alt={item.title}
@@ -211,19 +211,19 @@ export default function OrderDetailPage() {
                     <p className="text-white text-sm">{item.title}</p>
                     <p className="text-gray-400 text-xs">Qty: {item.quantity}</p>
                   </div>
-                  <p className="text-blue-400 font-semibold">{formatMoney(item.price * item.quantity)}</p>
+                  <p className="font-semibold text-blue-400 sm:text-right">{formatMoney(item.price * item.quantity)}</p>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="border-t border-slate-700 pt-4">
-            <div className="flex justify-between text-xl font-bold text-white">
+            <div className="flex items-start justify-between gap-3 text-lg font-bold text-white sm:text-xl">
               <span>Total</span>
-              <span className="text-blue-400">{formatMoney(detail.order.total)}</span>
+              <span className="text-right text-blue-400">{formatMoney(detail.order.total)}</span>
             </div>
             {shouldShowExpectedDelivery(detail.order.status) && (
-              <div className="mt-3 flex justify-between text-sm text-slate-300">
+              <div className="mt-3 flex flex-col gap-1 text-sm text-slate-300 sm:flex-row sm:justify-between">
                 <span>Expected Delivery</span>
                 <span className="text-emerald-300">
                   {detail.order.status === "delivered"

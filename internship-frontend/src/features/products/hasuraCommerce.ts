@@ -55,7 +55,17 @@ export type ShippingAddress = {
   pincode: string;
 };
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:3001`
+    : "http://localhost:3001");
+
+const paymentStatusCache = new Map<string, PaymentStatus>();
+
+export function clearPaymentStatusCache(): void {
+  paymentStatusCache.clear();
+}
 
 export async function fetchProducts(): Promise<Product[]> {
   const data = await hasuraRequest<{ products: ProductRow[] }>(
@@ -393,6 +403,16 @@ async function getPaymentStatus(order: OrderSummaryRow): Promise<PaymentStatus> 
     return "not_required";
   }
 
+  // Avoid extra API calls when order state already implies a terminal payment state.
+  if (fallback !== "pending") {
+    return fallback;
+  }
+
+  const cached = paymentStatusCache.get(order.order_id);
+  if (cached) {
+    return cached;
+  }
+
   const jwt = localStorage.getItem("jwt");
   if (!jwt) {
     return fallback;
@@ -411,7 +431,9 @@ async function getPaymentStatus(order: OrderSummaryRow): Promise<PaymentStatus> 
     }
 
     const body = (await res.json()) as { payment?: { status?: string } };
-    return normalizePaymentStatus(body.payment?.status) ?? fallback;
+    const normalized = normalizePaymentStatus(body.payment?.status) ?? fallback;
+    paymentStatusCache.set(order.order_id, normalized);
+    return normalized;
   } catch {
     return fallback;
   }

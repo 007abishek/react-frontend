@@ -56,7 +56,7 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 px-4 py-6 sm:py-8">
       <div className="mx-auto mb-6 max-w-7xl">
         <button
           onClick={() => navigate("/products")}
@@ -66,13 +66,13 @@ export default function ProductDetailPage() {
         </button>
       </div>
 
-      <div className="mx-auto max-w-7xl rounded-2xl border border-slate-700 bg-slate-800/50 p-8 shadow-2xl backdrop-blur-lg">
-        <div className="grid gap-12 md:grid-cols-2">
-          <div className="rounded-xl bg-white p-8">
+      <div className="mx-auto max-w-7xl rounded-2xl border border-slate-700 bg-slate-800/50 p-4 shadow-2xl backdrop-blur-lg sm:p-8">
+        <div className="grid gap-8 md:grid-cols-2 md:gap-12">
+          <div className="rounded-xl bg-white p-4 sm:p-8">
             <img
               src={product.thumbnail}
               alt={product.title}
-              className="h-96 w-full object-contain"
+              className="h-64 w-full object-contain sm:h-80 md:h-96"
             />
           </div>
 
@@ -81,9 +81,9 @@ export default function ProductDetailPage() {
               {product.category}
             </span>
 
-            <h1 className="mb-4 text-3xl font-bold">{product.title}</h1>
+            <h1 className="mb-4 text-2xl font-bold sm:text-3xl">{product.title}</h1>
 
-            <div className="mb-6 text-4xl font-bold text-blue-400">
+            <div className="mb-6 text-3xl font-bold text-blue-400 sm:text-4xl">
               &#8377; {product.price}
             </div>
 
@@ -106,7 +106,7 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
-            <div className="mb-8 flex gap-4">
+            <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:gap-4">
               <button
                 onClick={handleAddToCart}
                 className="flex-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 py-3 font-semibold transition hover:from-blue-700 hover:to-indigo-700"
