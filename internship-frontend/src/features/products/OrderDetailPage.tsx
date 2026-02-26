@@ -1,15 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "../../components/layout/AppLayout";
 import {
-  fetchOrderByExternalId,
   subscribeOrderByExternalId,
   type OrderSummary,
   type OrderItem,
   type ShippingAddress,
 } from "./hasuraCommerce";
+import { useHasuraSubscription } from "../../hooks/useHasuraSubscription";
 
-type OrderDetailState = {
+type OrderDetailPayload = {
   order: OrderSummary | null;
   items: OrderItem[];
   address: ShippingAddress | null;
@@ -43,7 +43,6 @@ function getExpectedDeliveryDate(order: OrderSummary): string {
   const created = new Date(order.created_at);
   if (Number.isNaN(created.getTime())) return "TBD";
 
-  // Simple delivery estimate by status.
   let daysToAdd = 5;
   if (order.status === "pending") daysToAdd = 6;
   if (order.status === "confirmed") daysToAdd = 5;
@@ -74,69 +73,19 @@ function shouldShowExpectedDelivery(status: string): boolean {
 export default function OrderDetailPage() {
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const [detail, setDetail] = useState<OrderDetailState>({
-    order: null,
-    items: [],
-    address: null,
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  useEffect(() => {
-    let mounted = true;
-    let unsubscribe: (() => void) | undefined;
+  const subscribe = useCallback(
+    (
+      onData: (payload: OrderDetailPayload) => void,
+      onError: (err: Error) => void
+    ) => {
+      if (!orderId) return Promise.reject(new Error("No order ID"));
+      return subscribeOrderByExternalId(orderId, onData, onError);
+    },
+    [orderId]
+  );
 
-    const load = async () => {
-      if (!orderId) {
-        navigate("/orders");
-        return;
-      }
-
-      try {
-        const data = await fetchOrderByExternalId(orderId);
-        if (!data.order) {
-          navigate("/orders");
-          return;
-        }
-        if (!mounted) return;
-        setDetail(data);
-      } catch (err) {
-        console.error("Failed to fetch order:", err);
-        if (mounted) setError("Failed to load order details.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    load();
-
-    if (orderId) {
-      subscribeOrderByExternalId(
-        orderId,
-        (next) => {
-          if (!mounted) return;
-          if (!next.order) {
-            navigate("/orders");
-            return;
-          }
-          setDetail(next);
-        },
-        (err) => console.error("Order detail realtime subscription failed:", err)
-      )
-        .then((stop) => {
-          unsubscribe = stop;
-        })
-        .catch((err) => {
-          console.error("Order detail realtime setup failed:", err);
-          if (mounted) setError("Realtime updates unavailable.");
-        });
-    }
-
-    return () => {
-      mounted = false;
-      unsubscribe?.();
-    };
-  }, [orderId, navigate]);
+  const { data: detail, loading, error, status } = useHasuraSubscription<OrderDetailPayload>(subscribe);
 
   if (loading) {
     return (
@@ -146,7 +95,10 @@ export default function OrderDetailPage() {
     );
   }
 
-  if (!detail.order) return null;
+  if (!detail?.order) {
+    if (!loading) navigate("/orders");
+    return null;
+  }
 
   return (
     <AppLayout>
@@ -167,7 +119,18 @@ export default function OrderDetailPage() {
 
         <div className="rounded-lg bg-slate-800 p-4 sm:p-6">
           <div className="border-b border-slate-700 pb-4 mb-4">
-            <h1 className="mb-2 text-xl font-bold text-white sm:text-2xl">Order Details</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-xl font-bold text-white sm:text-2xl">Order Details</h1>
+              {status === "live" && (
+                <span className="flex items-center gap-1.5 rounded-full bg-emerald-600/20 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/30">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                  Live
+                </span>
+              )}
+            </div>
             <p className="break-all text-gray-400">Order ID: {detail.order.order_id}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-400">Order</span>

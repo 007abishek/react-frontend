@@ -7,12 +7,7 @@ import cron from "node-cron";
 
 import { initDb } from "./config/db";
 import authRoutes from "./routes/auth";
-import productRoutes from "./routes/products";
-import cartRoutes from "./routes/cart";
-import inventoryRoutes from "./routes/inventory";
 import inventoryModel from "./models/inventory.model";
-import orderRoutes from "./routes/orders";
-import paymentRoutes   from "./routes/payments"; 
 import { handleStripeWebhook } from "./controllers/payment.controller";
 import hasuraRoutes from "./routes/hasura";
 
@@ -105,11 +100,6 @@ app.use(morgan("dev"));
 ============================================================ */
 
 app.use("/auth", authRoutes);
-app.use("/products", productRoutes);
-app.use("/cart", cartRoutes);
-app.use("/inventory", inventoryRoutes);
-app.use("/orders",orderRoutes);
-app.use("/payments", enforceHttpsForPayments, paymentRoutes);
 app.use("/hasura", hasuraRoutes);
 /* ============================================================
    HEALTH CHECK

@@ -8,26 +8,28 @@ $ErrorActionPreference = "Stop"
 
 function Invoke-HasuraMetadata {
   param([string]$Body)
+  $utf8Body = [System.Text.Encoding]::UTF8.GetBytes($Body)
   Invoke-RestMethod `
     -Uri "$HasuraUrl/v1/metadata" `
     -Method POST `
     -Headers @{
       "x-hasura-admin-secret" = $AdminSecret
-      "Content-Type"          = "application/json"
+      "Content-Type"          = "application/json; charset=utf-8"
     } `
-    -Body $Body
+    -Body $utf8Body
 }
 
 function Invoke-HasuraGraphQL {
   param([string]$Body)
+  $utf8Body = [System.Text.Encoding]::UTF8.GetBytes($Body)
   Invoke-RestMethod `
     -Uri "$HasuraUrl/v1/graphql" `
     -Method POST `
     -Headers @{
       "x-hasura-admin-secret" = $AdminSecret
-      "Content-Type"          = "application/json"
+      "Content-Type"          = "application/json; charset=utf-8"
     } `
-    -Body $Body
+    -Body $utf8Body
 }
 
 Write-Host "Checking Hasura health..."

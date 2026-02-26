@@ -55,11 +55,25 @@ export type ShippingAddress = {
   pincode: string;
 };
 
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== "undefined"
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : "http://localhost:3001");
+export type CheckoutAddressInput = {
+  fullName: string;
+  phone: string;
+  email: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  pincode: string;
+};
+
+export type CheckoutOrderInput = {
+  items: CartItem[];
+  address: CheckoutAddressInput;
+  paymentMethod: "cod" | "card" | "upi";
+  total: number;
+  orderId?: string;
+  orderDate?: string;
+};
 
 const paymentStatusCache = new Map<string, PaymentStatus>();
 
@@ -169,6 +183,103 @@ export async function syncCart(items: CartItem[]): Promise<void> {
       })),
     }
   );
+}
+
+export async function createOrderViaAction(input: CheckoutOrderInput): Promise<{
+  orderId: string;
+  orderDate: string;
+  status: string;
+  orderStatus: string;
+  paymentStatus: PaymentStatus;
+  paymentMethod: string;
+  total: number;
+}> {
+  const data = await hasuraRequest<{
+    createOrder: {
+      orderId: string;
+      orderDate: string;
+      status: string;
+      orderStatus: string;
+      paymentStatus: string;
+      paymentMethod: string;
+      total: number;
+    };
+  }>(
+    `
+      mutation CreateOrder(
+        $items: [CreateOrderItemInput!]!
+        $address: CreateOrderAddressInput!
+        $paymentMethod: String!
+        $total: numeric!
+        $orderId: String
+        $orderDate: String
+      ) {
+        createOrder(
+          items: $items
+          address: $address
+          paymentMethod: $paymentMethod
+          total: $total
+          orderId: $orderId
+          orderDate: $orderDate
+        ) {
+          orderId
+          orderDate
+          status
+          orderStatus
+          paymentStatus
+          paymentMethod
+          total
+        }
+      }
+    `,
+    {
+      items: input.items.map((item) => ({
+        productId: item.id,
+        title: item.title,
+        price: item.price,
+        thumbnail: item.thumbnail || item.images?.[0] || "",
+        quantity: item.quantity,
+      })),
+      address: input.address,
+      paymentMethod: input.paymentMethod,
+      total: input.total,
+      orderId: input.orderId,
+      orderDate: input.orderDate,
+    }
+  );
+
+  return {
+    ...data.createOrder,
+    total: Number(data.createOrder.total),
+    paymentStatus: normalizePaymentStatus(data.createOrder.paymentStatus) ?? "pending",
+  };
+}
+
+export async function createStripePaymentIntentViaAction(input: {
+  orderId: string;
+  amount: number;
+  currency?: string;
+}): Promise<{ clientSecret: string; paymentIntentId: string; reused: boolean }> {
+  const data = await hasuraRequest<{
+    createStripePaymentIntent: {
+      clientSecret: string;
+      paymentIntentId: string;
+      reused: boolean;
+    };
+  }>(
+    `
+      mutation CreateStripePaymentIntent($orderId: String!, $amount: numeric!, $currency: String) {
+        createStripePaymentIntent(orderId: $orderId, amount: $amount, currency: $currency) {
+          clientSecret
+          paymentIntentId
+          reused
+        }
+      }
+    `,
+    input
+  );
+
+  return data.createStripePaymentIntent;
 }
 
 export async function fetchOrderHistory(): Promise<OrderSummary[]> {
@@ -368,6 +479,55 @@ export async function subscribeOrderByExternalId(
   );
 }
 
+export async function fetchOrderConfirmationByExternalId(orderId: string): Promise<{
+  orderId: string;
+  orderStatus: string;
+  paymentStatus: PaymentStatus;
+} | null> {
+  const data = await hasuraRequest<{
+    orders: Array<{
+      order_id: string;
+      status: string;
+      payment_method: string;
+      total: number;
+      created_at: string;
+      id: number;
+    }>;
+  }>(
+    `
+      query GetOrderConfirmation($orderId: String!) {
+        orders(where: { order_id: { _eq: $orderId } }, limit: 1) {
+          id
+          order_id
+          status
+          payment_method
+          total
+          created_at
+        }
+      }
+    `,
+    { orderId }
+  );
+
+  const row = data.orders[0];
+  if (!row) return null;
+
+  const paymentStatus = await getPaymentStatus({
+    id: row.id,
+    order_id: row.order_id,
+    status: row.status,
+    payment_method: row.payment_method,
+    total: Number(row.total),
+    created_at: row.created_at,
+  });
+
+  return {
+    orderId: row.order_id,
+    orderStatus: row.status,
+    paymentStatus,
+  };
+}
+
 function normalizeProduct(product: ProductRow): Product {
   return {
     ...product,
@@ -413,30 +573,33 @@ async function getPaymentStatus(order: OrderSummaryRow): Promise<PaymentStatus> 
     return cached;
   }
 
-  const jwt = localStorage.getItem("jwt");
-  if (!jwt) {
-    return fallback;
-  }
-
   try {
-    const res = await fetch(`${API_URL}/payments/${encodeURIComponent(order.order_id)}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-      },
-    });
-
-    if (!res.ok) {
-      return fallback;
-    }
-
-    const body = (await res.json()) as { payment?: { status?: string } };
-    const normalized = normalizePaymentStatus(body.payment?.status) ?? fallback;
+    const data = await getPaymentStatusAction(order.order_id);
+    const normalized = normalizePaymentStatus(data.status) ?? fallback;
     paymentStatusCache.set(order.order_id, normalized);
     return normalized;
-  } catch {
+  } catch (err) {
+    console.error("getPaymentStatus error:", err);
     return fallback;
   }
+}
+
+async function getPaymentStatusAction(orderId: string): Promise<{ status: string; amount: number; currency: string; provider: string }> {
+  const data = await hasuraRequest<{ getPaymentStatus: { status: string; amount: number; currency: string; provider: string } }>(
+    `
+      mutation GetPaymentStatus($orderId: String!) {
+        getPaymentStatus(orderId: $orderId) {
+          status
+          amount
+          currency
+          provider
+        }
+      }
+    `,
+    { orderId }
+  );
+
+  return data.getPaymentStatus;
 }
 
 function getFallbackPaymentStatus(order: OrderSummaryRow): PaymentStatus {

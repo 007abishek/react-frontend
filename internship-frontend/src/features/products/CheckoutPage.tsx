@@ -4,17 +4,16 @@ import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { clearCart } from "./cartSlice";
+import {
+  createOrderViaAction,
+  createStripePaymentIntentViaAction,
+} from "./hasuraCommerce";
 import StripePaymentForm from "./StripePaymentForm";
 
 const stripePromise = loadStripe(
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""
 );
 const hasStripeKey = Boolean(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== "undefined"
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : "http://localhost:3001");
 
 const INDIAN_STATES = [
   "Andhra Pradesh",
@@ -224,41 +223,25 @@ export default function CheckoutPage() {
     };
 
     try {
-      const jwt = localStorage.getItem("jwt");
-      
-      if (!jwt) {
-        setError("Please login to place order");
-        setIsPlacing(false);
-        return;
-      }
-
-      // Step 1: Create Order
-      const orderRes = await fetch(`${API_URL}/orders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${jwt}`,
-        },
-        body: JSON.stringify(orderData),
-      });
-
-      if (!orderRes.ok) {
-        const errorData = await orderRes.json();
-        setError(errorData.message || "Failed to place order");
-        setIsPlacing(false);
-        return;
-      }
-
-      const orderResult = await orderRes.json();
-      const createdOrderId = orderResult.order.orderId;
+      const createdOrder = await createOrderViaAction(orderData);
+      const createdOrderId = createdOrder.orderId;
       setOrderId(createdOrderId);
-      setCreatedOrderData(orderResult.order);
+      setCreatedOrderData({
+        ...orderData,
+        ...createdOrder,
+      });
 
       // Step 2: Handle Payment Based on Method
       if (paymentMethod === "cod") {
-        // COD: Order is already confirmed by backend
         dispatch(clearCart());
-        navigate("/order-success", { state: { orderData: orderResult.order } });
+        navigate("/order-success", {
+          state: {
+            orderData: {
+              ...orderData,
+              ...createdOrder,
+            },
+          },
+        });
       } else if (paymentMethod === "card") {
         if (!hasStripeKey) {
           setError("Stripe publishable key is missing. Set VITE_STRIPE_PUBLISHABLE_KEY in frontend .env.");
@@ -266,33 +249,15 @@ export default function CheckoutPage() {
           return;
         }
 
-        // Card: Create Stripe Payment Intent
-        const paymentRes = await fetch(`${API_URL}/payments/stripe/intent`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${jwt}`,
-          },
-          body: JSON.stringify({
-            orderId: createdOrderId,
-            amount: calculateTotal(),
-            currency: "inr",
-          }),
+        const paymentResult = await createStripePaymentIntentViaAction({
+          orderId: createdOrderId,
+          amount: calculateTotal(),
+          currency: "inr",
         });
-
-        if (!paymentRes.ok) {
-          const errorData = await paymentRes.json();
-          setError(errorData.message || "Failed to initialize payment");
-          setIsPlacing(false);
-          return;
-        }
-
-        const paymentResult = await paymentRes.json();
         setClientSecret(paymentResult.clientSecret);
         setIsPlacing(false);
-        setStep("stripe"); // Move to Stripe payment form
+        setStep("stripe");
       } else if (paymentMethod === "upi") {
-        // UPI: For now, treat as pending (you can add UPI gateway later)
         setError("UPI payment coming soon. Please use Card or COD.");
         setIsPlacing(false);
       }

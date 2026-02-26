@@ -1,54 +1,8 @@
-import { gql, useQuery } from "@apollo/client";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../../components/layout/AppLayout";
-import { getHasuraToken } from "../../utils/hasuraClient";
-
-type OrderItem = {
-  title: string;
-  quantity: number;
-  price: number;
-};
-
-type Order = {
-  order_id: string;
-  status: string;
-  total: number;
-  created_at: string;
-  payment_method: string;
-  items: OrderItem[];
-};
-
-type GetUserOrdersData = {
-  orders: Order[];
-  orders_aggregate: {
-    aggregate: {
-      count: number;
-    } | null;
-  };
-};
-
-const GET_ORDERS = gql`
-  query GetUserOrders($limit: Int!, $offset: Int!, $where: orders_bool_exp!) {
-    orders(where: $where, order_by: { created_at: desc }, limit: $limit, offset: $offset) {
-      order_id
-      status
-      total
-      created_at
-      payment_method
-      items: order_items {
-        title
-        quantity
-        price
-      }
-    }
-    orders_aggregate(where: $where) {
-      aggregate {
-        count
-      }
-    }
-  }
-`;
+import { subscribeOrderHistory, type OrderSummary } from "./hasuraCommerce";
+import { useHasuraSubscription } from "../../hooks/useHasuraSubscription";
 
 const ORDER_STATUS_STYLES: Record<string, string> = {
   confirmed: "bg-green-600/20 text-green-400",
@@ -78,43 +32,25 @@ function humanizeStatus(status: string): string {
     .replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
+const PAGE_SIZE = 5;
+
 export default function OrderHistoryPage() {
   const navigate = useNavigate();
-  const [tokenReady, setTokenReady] = useState(false);
-  const [tokenError, setTokenError] = useState("");
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 5;
-  const where = { status: { _in: ["confirmed", "cancelled"] } };
 
-  useEffect(() => {
-    let mounted = true;
+  const subscribe = useCallback(
+    (onData: (orders: OrderSummary[]) => void, onError: (err: Error) => void) =>
+      subscribeOrderHistory(onData, onError),
+    []
+  );
 
-    void getHasuraToken()
-      .then(() => {
-        if (!mounted) return;
-        setTokenReady(true);
-      })
-      .catch((err) => {
-        if (!mounted) return;
-        setTokenError(err instanceof Error ? err.message : "Failed to initialize Hasura auth");
-      });
+  const { data: allOrders, loading, error, status } = useHasuraSubscription<OrderSummary[]>(subscribe);
 
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  const orders = allOrders ?? [];
+  const totalPages = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
+  const pagedOrders = orders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const { data, loading, error } = useQuery<GetUserOrdersData>(GET_ORDERS, {
-    fetchPolicy: "network-only",
-    skip: !tokenReady,
-    variables: {
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
-      where,
-    },
-  });
-
-  if (!tokenReady || loading) {
+  if (loading) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-screen">
@@ -127,34 +63,31 @@ export default function OrderHistoryPage() {
     );
   }
 
-  if (tokenError) {
-    return (
-      <AppLayout>
-        <div className="text-center py-12">
-          <p className="text-red-400">Error loading orders: {tokenError}</p>
-        </div>
-      </AppLayout>
-    );
-  }
-
   if (error) {
     return (
       <AppLayout>
         <div className="text-center py-12">
-          <p className="text-red-400">Error loading orders: {error.message}</p>
+          <p className="text-red-400">Error loading orders: {error}</p>
         </div>
       </AppLayout>
     );
   }
 
-  const orders = data?.orders ?? [];
-  const totalCount = data?.orders_aggregate.aggregate?.count ?? 0;
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-
   return (
     <AppLayout>
       <div className="mx-auto max-w-4xl px-2 py-6 sm:px-4 sm:py-8">
-        <h1 className="mb-6 text-2xl font-bold text-white sm:text-3xl">Order History (GraphQL)</h1>
+        <div className="mb-6 flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-white sm:text-3xl">Order History</h1>
+          {status === "live" && (
+            <span className="flex items-center gap-1.5 rounded-full bg-emerald-600/20 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/30">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              Live
+            </span>
+          )}
+        </div>
 
         {orders.length === 0 ? (
           <div className="text-center py-12 bg-slate-800/50 rounded-2xl border border-slate-700">
@@ -169,7 +102,7 @@ export default function OrderHistoryPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {orders.map((order) => (
+            {pagedOrders.map((order) => (
               <div
                 key={order.order_id}
                 onClick={() => navigate(`/orders/${order.order_id}`)}
@@ -195,9 +128,6 @@ export default function OrderHistoryPage() {
                 <div className="border-t border-slate-700 pt-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-gray-400 text-sm mb-1">
-                        {order.items?.length ?? 0} item{(order.items?.length ?? 0) !== 1 ? "s" : ""}
-                      </p>
                       <p className="text-gray-500 text-xs">
                         {new Date(order.created_at).toLocaleDateString("en-US", {
                           year: "numeric",
@@ -215,29 +145,31 @@ export default function OrderHistoryPage() {
               </div>
             ))}
 
-            <div className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-slate-400">
-                Page {page} of {totalPages}
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800"
-                >
-                  Next
-                </button>
+            {totalPages > 1 && (
+              <div className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-900/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-slate-400">
+                  Page {page} of {totalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>

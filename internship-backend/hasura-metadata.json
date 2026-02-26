@@ -2,6 +2,156 @@
   "type": "replace_metadata",
   "args": {
     "version": 3,
+    "custom_types": {
+      "input_objects": [
+        {
+          "name": "GetPaymentStatusInput",
+          "fields": [
+            { "name": "orderId", "type": "String!" }
+          ]
+        },
+        {
+          "name": "CreateOrderItemInput",
+          "fields": [
+            { "name": "productId", "type": "Int!" },
+            { "name": "title", "type": "String!" },
+            { "name": "price", "type": "numeric!" },
+            { "name": "thumbnail", "type": "String" },
+            { "name": "quantity", "type": "Int!" }
+          ]
+        },
+        {
+          "name": "CreateOrderAddressInput",
+          "fields": [
+            { "name": "fullName", "type": "String!" },
+            { "name": "phone", "type": "String!" },
+            { "name": "email", "type": "String!" },
+            { "name": "addressLine1", "type": "String!" },
+            { "name": "addressLine2", "type": "String" },
+            { "name": "city", "type": "String!" },
+            { "name": "state", "type": "String!" },
+            { "name": "pincode", "type": "String!" }
+          ]
+        },
+        {
+          "name": "CreateStripePaymentIntentInput",
+          "fields": [
+            { "name": "orderId", "type": "String!" },
+            { "name": "amount", "type": "numeric!" },
+            { "name": "currency", "type": "String" }
+          ]
+        }
+      ],
+      "objects": [
+        {
+          "name": "PaymentStatusOutput",
+          "fields": [
+            { "name": "status",   "type": "String!" },
+            { "name": "amount",   "type": "numeric!" },
+            { "name": "currency", "type": "String!" },
+            { "name": "provider", "type": "String!" }
+          ]
+        },
+        {
+          "name": "CreateOrderOutput",
+          "fields": [
+            { "name": "orderId", "type": "String!" },
+            { "name": "orderDate", "type": "String!" },
+            { "name": "status", "type": "String!" },
+            { "name": "orderStatus", "type": "String!" },
+            { "name": "paymentStatus", "type": "String!" },
+            { "name": "paymentMethod", "type": "String!" },
+            { "name": "total", "type": "numeric!" }
+          ]
+        },
+        {
+          "name": "CreateStripePaymentIntentOutput",
+          "fields": [
+            { "name": "clientSecret", "type": "String!" },
+            { "name": "paymentIntentId", "type": "String!" },
+            { "name": "reused", "type": "Boolean!" }
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "name": "createOrder",
+        "definition": {
+          "kind": "synchronous",
+          "handler": "{{ACTION_BASE_URL}}/hasura/actions/create-order",
+          "forward_client_headers": false,
+          "headers": [
+            {
+              "name": "x-hasura-action-secret",
+              "value_from_env": "HASURA_ACTION_SECRET"
+            }
+          ],
+          "type": "mutation",
+          "arguments": [
+            { "name": "items", "type": "[CreateOrderItemInput!]!" },
+            { "name": "address", "type": "CreateOrderAddressInput!" },
+            { "name": "paymentMethod", "type": "String!" },
+            { "name": "total", "type": "numeric!" },
+            { "name": "orderId", "type": "String" },
+            { "name": "orderDate", "type": "String" }
+          ],
+          "output_type": "CreateOrderOutput"
+        },
+        "permissions": [
+          { "role": "user" }
+        ],
+        "comment": "Create order from checkout through Hasura action instead of direct REST calls."
+      },
+      {
+        "name": "createStripePaymentIntent",
+        "definition": {
+          "kind": "synchronous",
+          "handler": "{{ACTION_BASE_URL}}/hasura/actions/create-stripe-payment-intent",
+          "forward_client_headers": false,
+          "headers": [
+            {
+              "name": "x-hasura-action-secret",
+              "value_from_env": "HASURA_ACTION_SECRET"
+            }
+          ],
+          "type": "mutation",
+          "arguments": [
+            { "name": "orderId", "type": "String!" },
+            { "name": "amount", "type": "numeric!" },
+            { "name": "currency", "type": "String" }
+          ],
+          "output_type": "CreateStripePaymentIntentOutput"
+        },
+        "permissions": [
+          { "role": "user" }
+        ],
+        "comment": "Create or reuse Stripe payment intent via Hasura action."
+      },
+      {
+        "name": "getPaymentStatus",
+        "definition": {
+          "kind": "synchronous",
+          "handler": "{{ACTION_BASE_URL}}/hasura/actions/get-payment-status",
+          "forward_client_headers": false,
+          "headers": [
+            {
+              "name": "x-hasura-action-secret",
+              "value_from_env": "HASURA_ACTION_SECRET"
+            }
+          ],
+          "type": "mutation",
+          "arguments": [
+            { "name": "orderId", "type": "String!" }
+          ],
+          "output_type": "PaymentStatusOutput"
+        },
+        "permissions": [
+          { "role": "user" }
+        ],
+        "comment": "Fetch payment status for an order. Frontend → Hasura Action → Express handler → DB."
+      }
+    ],
     "sources": [
       {
         "name": "default",

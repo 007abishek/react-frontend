@@ -1,14 +1,10 @@
 import { useState } from "react";
 import { PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import { fetchOrderConfirmationByExternalId } from "./hasuraCommerce";
 
 const MIN_CARD_PAYMENT_INR = 50;
 const PAYMENT_CONFIRMATION_TIMEOUT_MS = 60_000;
 const PAYMENT_CONFIRMATION_POLL_INTERVAL_MS = 2_000;
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== "undefined"
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : "http://localhost:3001");
 
 interface BillingDetails {
   fullName: string;
@@ -64,38 +60,28 @@ export default function StripePaymentForm({
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const waitForBackendConfirmation = async (orderId: string): Promise<Record<string, unknown>> => {
-    const jwt = localStorage.getItem("jwt");
-    if (!jwt) {
-      throw new Error("Session expired. Please login and check your order status.");
-    }
-
     const deadline = Date.now() + PAYMENT_CONFIRMATION_TIMEOUT_MS;
 
     while (Date.now() < deadline) {
-      const response = await fetch(`${API_URL}/orders/${encodeURIComponent(orderId)}`, {
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-        },
-      });
+      const order = await fetchOrderConfirmationByExternalId(orderId);
 
-      if (response.ok) {
-        const body = (await response.json()) as { order?: Record<string, unknown> };
-        const order = body.order;
+      if (order) {
+        const orderStatus = String(order.orderStatus ?? "").toLowerCase();
+        const paymentStatus = String(order.paymentStatus ?? "").toLowerCase();
 
-        if (order) {
-          const orderStatus = String(order.orderStatus ?? order.status ?? "").toLowerCase();
-          const paymentStatus = String(order.paymentStatus ?? "").toLowerCase();
+        if (
+          paymentStatus === "succeeded" &&
+          ["confirmed", "processing", "shipped", "delivered"].includes(orderStatus)
+        ) {
+          return {
+            orderId: order.orderId,
+            orderStatus: order.orderStatus,
+            paymentStatus: order.paymentStatus,
+          };
+        }
 
-          if (
-            paymentStatus === "succeeded" &&
-            ["confirmed", "processing", "shipped", "delivered"].includes(orderStatus)
-          ) {
-            return order;
-          }
-
-          if (["failed", "cancelled"].includes(paymentStatus) || orderStatus === "cancelled") {
-            throw new Error("Payment was not confirmed by backend. Please try again.");
-          }
+        if (["failed", "cancelled"].includes(paymentStatus) || orderStatus === "cancelled") {
+          throw new Error("Payment was not confirmed by backend. Please try again.");
         }
       }
 
