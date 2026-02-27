@@ -1,44 +1,27 @@
 import { Request, Response } from "express";
-import OrderModel from "../../models/order.model";
-import PaymentModel from "../../models/payment.model";
-import { getHasuraSessionUser, requireHasuraActionSecret } from "./helpers";
+import { HasuraActionRequest } from "../../middleware/hasura";
+import { getPaymentStatusForOrder } from "../../services/hasura/payment.service";
 
 export const handleGetPaymentStatusAction = async (req: Request, res: Response) => {
   try {
-    if (!requireHasuraActionSecret(req)) {
-      res.status(401).json({ message: "Unauthorized Hasura action" });
-      return;
-    }
-
     const orderId = req.body?.input?.orderId as string | undefined;
-    const session = getHasuraSessionUser(req);
+    const actionReq = req as HasuraActionRequest;
+    const session = actionReq.hasuraUser;
 
     if (!orderId || !session) {
       res.status(400).json({ message: "orderId and a valid user session are required" });
       return;
     }
 
-    const order = await OrderModel.getByOrderId(orderId, session.userId);
-    if (!order) {
-      res.status(404).json({ message: "Order not found" });
-      return;
-    }
-
-    const payment = await PaymentModel.getByOrderId(order.id);
-    if (!payment) {
-      res.status(404).json({ message: "Payment not found" });
-      return;
-    }
-
-    res.json({
-      status: payment.status,
-      amount: Number(payment.amount),
-      currency: payment.currency,
-      provider: payment.provider,
-    });
+    const result = await getPaymentStatusForOrder(orderId, session.userId);
+    res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Action handling failed";
     console.error("handleGetPaymentStatusAction error:", message);
+    if (message === "Order not found" || message === "Payment not found") {
+      res.status(404).json({ message });
+      return;
+    }
     res.status(500).json({ message: "Failed to fetch payment status" });
   }
 };

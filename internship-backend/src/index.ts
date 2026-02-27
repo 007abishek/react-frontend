@@ -6,9 +6,9 @@ import morgan from "morgan";
 import cron from "node-cron";
 
 import { initDb } from "./config/db";
-import authRoutes from "./routes/auth";
 import inventoryModel from "./models/inventory.model";
 import { handleStripeWebhook } from "./controllers/payment.controller";
+import { verifyStripeWebhookSignature } from "./middleware/stripeWebhook";
 import hasuraRoutes from "./routes/hasura";
 
 
@@ -81,6 +81,7 @@ app.post(
   "/payments/stripe/webhook",
   enforceHttpsForPayments,
   express.raw({ type: "application/json" }),
+  verifyStripeWebhookSignature,
   handleStripeWebhook
 );
 
@@ -89,6 +90,7 @@ app.post(
   "/payments/stripe",
   enforceHttpsForPayments,
   express.raw({ type: "application/json" }),
+  verifyStripeWebhookSignature,
   handleStripeWebhook
 );
 
@@ -99,7 +101,6 @@ app.use(morgan("dev"));
    ROUTES
 ============================================================ */
 
-app.use("/auth", authRoutes);
 app.use("/hasura", hasuraRoutes);
 /* ============================================================
    HEALTH CHECK

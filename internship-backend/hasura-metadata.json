@@ -40,6 +40,18 @@
             { "name": "amount", "type": "numeric!" },
             { "name": "currency", "type": "String" }
           ]
+        },
+        {
+          "name": "AuthLoginInput",
+          "fields": [
+            { "name": "firebaseIdToken", "type": "String!" }
+          ]
+        },
+        {
+          "name": "IssueHasuraTokenInput",
+          "fields": [
+            { "name": "backendJwt", "type": "String!" }
+          ]
         }
       ],
       "objects": [
@@ -71,10 +83,91 @@
             { "name": "paymentIntentId", "type": "String!" },
             { "name": "reused", "type": "Boolean!" }
           ]
+        },
+        {
+          "name": "AuthUserOutput",
+          "fields": [
+            { "name": "id", "type": "Int!" },
+            { "name": "uid", "type": "String!" },
+            { "name": "email", "type": "String" },
+            { "name": "provider", "type": "String!" },
+            { "name": "isGuest", "type": "Boolean!" }
+          ]
+        },
+        {
+          "name": "AuthLoginOutput",
+          "fields": [
+            { "name": "token", "type": "String!" },
+            { "name": "hasuraToken", "type": "String!" },
+            { "name": "user", "type": "AuthUserOutput!" }
+          ]
+        },
+        {
+          "name": "IssueHasuraTokenOutput",
+          "fields": [
+            { "name": "token", "type": "String!" }
+          ]
+        },
+        {
+          "name": "InvokeEmailLambdaOutput",
+          "fields": [
+            { "name": "success", "type": "Boolean!" },
+            { "name": "message", "type": "String!" }
+          ]
         }
       ]
     },
     "actions": [
+      {
+        "name": "authLogin",
+        "definition": {
+          "kind": "synchronous",
+          "handler": "{{ACTION_BASE_URL}}/hasura/actions/auth-login",
+          "forward_client_headers": false,
+          "headers": [
+            {
+              "name": "x-hasura-action-secret",
+              "value_from_env": "HASURA_ACTION_SECRET"
+            }
+          ],
+          "type": "mutation",
+          "arguments": [
+            { "name": "firebaseIdToken", "type": "String!" }
+          ],
+          "output_type": "AuthLoginOutput"
+        },
+        "permissions": [
+          { "role": "anonymous" },
+          { "role": "guest" },
+          { "role": "user" }
+        ],
+        "comment": "Authenticate firebase id token through Hasura action and return backend+Hasura JWTs."
+      },
+      {
+        "name": "issueHasuraToken",
+        "definition": {
+          "kind": "synchronous",
+          "handler": "{{ACTION_BASE_URL}}/hasura/actions/issue-hasura-token",
+          "forward_client_headers": false,
+          "headers": [
+            {
+              "name": "x-hasura-action-secret",
+              "value_from_env": "HASURA_ACTION_SECRET"
+            }
+          ],
+          "type": "mutation",
+          "arguments": [
+            { "name": "backendJwt", "type": "String!" }
+          ],
+          "output_type": "IssueHasuraTokenOutput"
+        },
+        "permissions": [
+          { "role": "anonymous" },
+          { "role": "guest" },
+          { "role": "user" }
+        ],
+        "comment": "Issue Hasura JWT from backend JWT through Hasura action."
+      },
       {
         "name": "createOrder",
         "definition": {
@@ -150,6 +243,32 @@
           { "role": "user" }
         ],
         "comment": "Fetch payment status for an order. Frontend → Hasura Action → Express handler → DB."
+      },
+      {
+        "name": "invokeEmailLambda",
+        "definition": {
+          "kind": "synchronous",
+          "handler": "{{ACTION_BASE_URL}}/hasura/actions/invoke-email-lambda",
+          "forward_client_headers": false,
+          "headers": [
+            {
+              "name": "x-hasura-action-secret",
+              "value_from_env": "HASURA_ACTION_SECRET"
+            }
+          ],
+          "type": "mutation",
+          "arguments": [
+            { "name": "type", "type": "String!" },
+            { "name": "orderId", "type": "String!" },
+            { "name": "email", "type": "String!" },
+            { "name": "payload", "type": "jsonb!" }
+          ],
+          "output_type": "InvokeEmailLambdaOutput"
+        },
+        "permissions": [
+          { "role": "user" }
+        ],
+        "comment": "Invoke AWS Lambda from a Hasura action mutation."
       }
     ],
     "sources": [
