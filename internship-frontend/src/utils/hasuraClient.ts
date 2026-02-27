@@ -1,10 +1,9 @@
 import { gql } from "@apollo/client";
 import { apolloClient } from "./apolloClient";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 const HASURA_URL = import.meta.env.VITE_HASURA_URL || "http://localhost:8080/v1/graphql";
 
-const HASURA_TOKEN_KEY = "hasura_jwt";
+export const HASURA_TOKEN_KEY = "hasura_jwt";
 
 type GraphQLError = {
   message: string;
@@ -24,26 +23,46 @@ async function fetchHasuraToken(): Promise<string> {
     throw new Error("Missing backend JWT. Please login again.");
   }
 
-  const res = await fetch(`${API_URL}/auth/hasura-token`, {
+  const res = await fetch(HASURA_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${backendJwt}`,
     },
-    body: "{}",
+    body: JSON.stringify({
+      query: `
+        mutation IssueHasuraToken($backendJwt: String!) {
+          issueHasuraToken(backendJwt: $backendJwt) {
+            token
+          }
+        }
+      `,
+      variables: { backendJwt },
+    }),
   });
 
   if (!res.ok) {
     throw new Error(`Failed to get Hasura token (${res.status})`);
   }
 
-  const body = (await res.json()) as { token?: string };
-  if (!body.token) {
-    throw new Error("Hasura token missing in response");
+  const body = (await res.json()) as {
+    data?: { issueHasuraToken?: { token?: string } };
+    errors?: Array<{ message?: string }>;
+  };
+  const token = body.data?.issueHasuraToken?.token;
+  if (!token) {
+    const message = body.errors?.[0]?.message ?? "Hasura token missing in response";
+    throw new Error(message);
   }
 
-  localStorage.setItem(HASURA_TOKEN_KEY, body.token);
-  return body.token;
+  localStorage.setItem(HASURA_TOKEN_KEY, token);
+  return token;
+}
+
+export function setHasuraToken(token: string): void {
+  if (!token) {
+    throw new Error("Hasura token missing in response");
+  }
+  localStorage.setItem(HASURA_TOKEN_KEY, token);
 }
 
 export async function getHasuraToken(forceRefresh = false): Promise<string> {

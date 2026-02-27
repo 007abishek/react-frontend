@@ -75,6 +75,27 @@ export type CheckoutOrderInput = {
   orderDate?: string;
 };
 
+export type InvokeEmailLambdaType = "confirmation" | "payment_failed" | "cancellation";
+
+export type InvokeEmailLambdaPayload = {
+  items: Array<{ title: string; quantity: number; price: number }>;
+  total: number;
+  currency?: string;
+  paymentMethod?: string;
+  orderDate?: string;
+  expectedDeliveryDate?: string;
+  address?: {
+    fullName?: string;
+    phone?: string;
+    email?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+};
+
 const paymentStatusCache = new Map<string, PaymentStatus>();
 
 export function clearPaymentStatusCache(): void {
@@ -94,6 +115,7 @@ export async function fetchProducts(): Promise<Product[]> {
           thumbnail
           images
           rating
+          stock
         }
       }
     `
@@ -115,6 +137,7 @@ export async function fetchProductById(id: number): Promise<Product | null> {
           thumbnail
           images
           rating
+          stock
         }
       }
     `,
@@ -280,6 +303,37 @@ export async function createStripePaymentIntentViaAction(input: {
   );
 
   return data.createStripePaymentIntent;
+}
+
+export async function invokeEmailLambdaViaAction(input: {
+  type: InvokeEmailLambdaType;
+  orderId: string;
+  email: string;
+  payload: InvokeEmailLambdaPayload;
+}): Promise<{ success: boolean; message: string }> {
+  const data = await hasuraRequest<{
+    invokeEmailLambda: {
+      success: boolean;
+      message: string;
+    };
+  }>(
+    `
+      mutation InvokeEmailLambda(
+        $type: String!
+        $orderId: String!
+        $email: String!
+        $payload: jsonb!
+      ) {
+        invokeEmailLambda(type: $type, orderId: $orderId, email: $email, payload: $payload) {
+          success
+          message
+        }
+      }
+    `,
+    input
+  );
+
+  return data.invokeEmailLambda;
 }
 
 export async function fetchOrderHistory(): Promise<OrderSummary[]> {
@@ -533,6 +587,7 @@ function normalizeProduct(product: ProductRow): Product {
     ...product,
     price: Number(product.price),
     rating: Number(product.rating),
+    stock: Number(product.stock),
   };
 }
 
@@ -623,3 +678,4 @@ function normalizePaymentStatus(status?: string): PaymentStatus | null {
   if (normalized === "cancelled") return "cancelled";
   return "unknown";
 }
+

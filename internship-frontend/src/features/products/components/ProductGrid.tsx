@@ -17,76 +17,70 @@ export default function ProductGrid({
   const { filter } = section;
 
   const filteredProducts = products.filter((product) => {
-    // ✅ Category filter (case-safe)
     if (filter?.category) {
-      if (
-        !product.category ||
-        product.category.toLowerCase() !==
-          filter.category.toLowerCase()
-      ) {
+      if (!product.category || product.category.toLowerCase() !== filter.category.toLowerCase()) {
         return false;
       }
     }
-   
 
-    // ✅ Rating filter
-    if (
-      filter?.minRating !== undefined &&
-      product.rating < filter.minRating
-    ) {
+    if (filter?.minRating !== undefined && product.rating < filter.minRating) {
       return false;
     }
 
     return true;
   });
 
-  // ✅ Empty section → don't render
   if (filteredProducts.length === 0) {
     return null;
   }
 
   return (
     <div className="mb-12">
-      {/* ✅ UPDATED: Theme-aware heading */}
-      <h2 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">
-        {section.title}
-      </h2>
+      <h2 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">{section.title}</h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredProducts.map((product) => (
-          <div
-            key={product.id}
-            onClick={() => onProductClick(product.id)}
-            className="group rounded-2xl bg-white dark:bg-zinc-900 p-4 shadow-sm hover:shadow-xl cursor-pointer"
-          >
-            <div className="h-44 flex items-center justify-center bg-slate-50 dark:bg-zinc-800 rounded-xl">
-              <img
-                src={product.thumbnail}
-                alt={product.title}
-                className="h-36 object-contain"
-              />
-            </div>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {filteredProducts.map((product) => {
+          const stock = Number(product.stock ?? 0);
+          const isOutOfStock = stock <= 0;
+          const isLowStock = stock > 0 && stock < 5;
 
-            {/* ✅ UPDATED: Theme-aware product title */}
-            <h3 className="mt-4 text-sm font-medium line-clamp-2 text-gray-900 dark:text-white">
-              {product.title}
-            </h3>
-
-            {/* ✅ UPDATED: Theme-aware price */}
-            <p className="mt-2 font-semibold text-gray-900 dark:text-white">
-              ₹ {product.price}
-            </p>
-
-            <button
-              onClick={(e) => onQuickAdd(e, product)}
-              className="mt-4 w-full rounded-md bg-blue-600 py-2 text-white hover:bg-blue-700"
+          return (
+            <div
+              key={product.id}
+              onClick={() => onProductClick(product.id)}
+              className="group cursor-pointer rounded-2xl bg-white p-4 shadow-sm hover:shadow-xl dark:bg-zinc-900"
             >
-              Add to Cart
-            </button>
-          </div>
-        ))}
+              <div className="flex h-44 items-center justify-center rounded-xl bg-slate-50 dark:bg-zinc-800">
+                <img src={product.thumbnail} alt={product.title} className="h-36 object-contain" />
+              </div>
+
+              <h3 className="mt-4 line-clamp-2 text-sm font-medium text-gray-900 dark:text-white">
+                {product.title}
+              </h3>
+
+              <p className="mt-2 font-semibold text-gray-900 dark:text-white">? {product.price}</p>
+
+              {isOutOfStock && <p className="mt-2 text-sm font-semibold text-red-500">Out of stock</p>}
+              {isLowStock && <p className="mt-2 text-sm font-semibold text-amber-500">Only {stock} left</p>}
+
+              <button
+                onClick={(e) => {
+                  if (isOutOfStock) {
+                    e.stopPropagation();
+                    return;
+                  }
+                  onQuickAdd(e, product);
+                }}
+                disabled={isOutOfStock}
+                className="mt-4 w-full rounded-md bg-blue-600 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-500 disabled:hover:bg-slate-500"
+              >
+                {isOutOfStock ? "Out of Stock" : "Add to Cart"}
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
-    
   );
 }
+

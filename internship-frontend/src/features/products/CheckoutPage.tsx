@@ -76,6 +76,18 @@ const COMMON_CITIES = [
   "Nashik",
   "Vadodara",
 ];
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message.trim()) {
+    return err.message;
+  }
+
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const message = String((err as { message?: unknown }).message ?? "").trim();
+    if (message) return message;
+  }
+
+  return "Failed to place order. Please try again.";
+}
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -264,7 +276,7 @@ export default function CheckoutPage() {
       
     } catch (err: unknown) {
       console.error("Order placement failed:", err);
-      setError("Failed to place order. Please check your connection and try again.");
+      setError(getErrorMessage(err));
       setIsPlacing(false);
     }
   };
@@ -832,3 +844,5 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
+

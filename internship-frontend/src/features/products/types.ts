@@ -4,6 +4,7 @@ export interface Product {
   description: string; // ✅ REQUIRED for ProductDetailPage
   price: number;
   category: string;
+  stock: number;
 
   // DummyJSON fields
   thumbnail: string;
@@ -15,3 +16,4 @@ export interface Product {
 export interface CartItem extends Product {
   quantity: number;
 }
+

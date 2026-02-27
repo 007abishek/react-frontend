@@ -4,10 +4,10 @@ import { loginSuccess, logout, authResolved } from "./authSlice";
 import { setCart, clearCart } from "../products/cartSlice";
 import { loadCartForUser } from "../../utils/indexedDb";
 import type { AppDispatch } from "../../app/store";
-import { clearHasuraToken } from "../../utils/hasuraClient";
+import { clearHasuraToken, setHasuraToken } from "../../utils/hasuraClient";
 import { clearPaymentStatusCache, fetchCart, syncCart } from "../products/hasuraCommerce";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const HASURA_URL = import.meta.env.VITE_HASURA_URL || "http://localhost:8080/v1/graphql";
 
 export const startAuthListener = (dispatch: AppDispatch) => {
   return onAuthStateChanged(auth, async (firebaseUser) => {
@@ -44,17 +44,42 @@ export const startAuthListener = (dispatch: AppDispatch) => {
 
     try {
       const firebaseIdToken = await firebaseUser.getIdToken();
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(HASURA_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firebaseIdToken }),
+        body: JSON.stringify({
+          query: `
+            mutation AuthLogin($firebaseIdToken: String!) {
+              authLogin(firebaseIdToken: $firebaseIdToken) {
+                token
+                hasuraToken
+                user {
+                  id
+                  uid
+                  email
+                  provider
+                  isGuest
+                }
+              }
+            }
+          `,
+          variables: { firebaseIdToken },
+        }),
       });
 
       if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem("jwt", data.token);
-        clearHasuraToken();
-        clearPaymentStatusCache();
+        const payload = (await res.json()) as {
+          data?: { authLogin?: { token?: string; hasuraToken?: string } };
+          errors?: Array<{ message?: string }>;
+        };
+        const loginData = payload.data?.authLogin;
+        if (loginData?.token && loginData?.hasuraToken) {
+          localStorage.setItem("jwt", loginData.token);
+          setHasuraToken(loginData.hasuraToken);
+          clearPaymentStatusCache();
+        } else {
+          clearHasuraToken();
+        }
       }
     } catch (err) {
       console.warn("Backend auth exchange failed:", err);

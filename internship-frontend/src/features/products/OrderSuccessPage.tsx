@@ -1,10 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { invokeEmailLambdaViaAction } from "./hasuraCommerce";
 
 export default function OrderSuccessPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const orderData = location.state?.orderData;
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailMessage, setEmailMessage] = useState("");
 
   useEffect(() => {
     // If no order data, redirect to products page
@@ -20,6 +23,58 @@ export default function OrderSuccessPage() {
   const orderItems = Array.isArray(orderData.items) ? orderData.items : [];
   const orderDateValue = orderData.orderDate ?? orderData.created_at ?? new Date().toISOString();
   const paymentMethod = String(orderData.paymentMethod ?? orderData.payment_method ?? "").toLowerCase();
+
+  const handleResendEmail = async () => {
+    const email = String(orderData?.address?.email ?? "").trim();
+    const orderId = String(orderData?.orderId ?? "").trim();
+    if (!email || !orderId) {
+      setEmailMessage("Email address or order id is missing.");
+      return;
+    }
+
+    const items = Array.isArray(orderData.items) ? orderData.items : [];
+    const orderDateIso = new Date(orderDateValue).toISOString();
+    const expectedDeliveryDate = new Date(
+      new Date(orderDateIso).getTime() + 3 * 24 * 60 * 60 * 1000
+    ).toISOString();
+
+    try {
+      setIsSendingEmail(true);
+      setEmailMessage("");
+      await invokeEmailLambdaViaAction({
+        type: "confirmation",
+        orderId,
+        email,
+        payload: {
+          items: items.map((item: any) => ({
+            title: String(item.title ?? "Product"),
+            quantity: Number(item.quantity ?? 0),
+            price: Number(item.price ?? 0),
+          })),
+          total: safeTotal,
+          currency: "INR",
+          paymentMethod,
+          orderDate: orderDateIso,
+          expectedDeliveryDate,
+          address: {
+            fullName: String(orderData?.address?.fullName ?? ""),
+            phone: String(orderData?.address?.phone ?? ""),
+            email,
+            addressLine1: String(orderData?.address?.addressLine1 ?? ""),
+            addressLine2: String(orderData?.address?.addressLine2 ?? ""),
+            city: String(orderData?.address?.city ?? ""),
+            state: String(orderData?.address?.state ?? ""),
+            pincode: String(orderData?.address?.pincode ?? ""),
+          },
+        },
+      });
+      setEmailMessage("Confirmation email sent.");
+    } catch (error) {
+      setEmailMessage(error instanceof Error ? error.message : "Failed to send confirmation email.");
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4 py-8 sm:py-12">
@@ -225,6 +280,15 @@ export default function OrderSuccessPage() {
             A confirmation email has been sent to{" "}
             <span className="text-white">{orderData.address.email}</span>
           </p>
+          <button
+            type="button"
+            onClick={handleResendEmail}
+            disabled={isSendingEmail}
+            className="mt-3 rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSendingEmail ? "Sending..." : "Resend Confirmation Email"}
+          </button>
+          {emailMessage && <p className="mt-2 text-xs text-slate-300">{emailMessage}</p>}
         </div>
       </div>
     </div>
