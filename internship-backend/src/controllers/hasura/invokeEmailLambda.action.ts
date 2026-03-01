@@ -1,8 +1,6 @@
 import { Request, Response } from "express";
 import { invokeEmailLambdaFromAction } from "../../services/hasura/lambda.service";
-import type { LambdaEmailPayload } from "../../temporal/activities/lambda.activities";
-
-type EmailLambdaType = "confirmation" | "payment_failed" | "cancellation";
+import type { EmailLambdaType, LambdaEmailPayload } from "../../services/hasura/types";
 
 function isEmailLambdaType(value: unknown): value is EmailLambdaType {
   return value === "confirmation" || value === "payment_failed" || value === "cancellation";

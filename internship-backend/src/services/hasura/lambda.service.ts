@@ -1,6 +1,5 @@
-import { LambdaEmailPayload, sendEmailViaLambdaActivity } from "../../temporal/activities/lambda.activities";
-
-type EmailLambdaType = "confirmation" | "payment_failed" | "cancellation";
+import { sendEmailViaLambdaActivity } from "../../temporal/activities/lambda.activities";
+import type { EmailLambdaType, LambdaEmailPayload } from "./types";
 
 export async function invokeEmailLambdaFromAction(input: {
   type: EmailLambdaType;

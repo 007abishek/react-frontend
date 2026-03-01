@@ -88,3 +88,13 @@ export async function sendEmailActivity(
   
   console.log('✅ Activity: Email sent');
 }
+
+// Sweep orphan/expired pending reservations as a Temporal-managed safety net.
+export async function releaseExpiredReservationsActivity(): Promise<number> {
+  console.log("🔧 Activity: Releasing expired reservations");
+  const count = await InventoryModel.releaseExpired();
+  if (count > 0) {
+    console.log(`✅ Activity: Released ${count} expired reservations`);
+  }
+  return count;
+}

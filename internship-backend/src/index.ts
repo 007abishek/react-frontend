@@ -6,10 +6,11 @@ import morgan from "morgan";
 import cron from "node-cron";
 
 import { initDb } from "./config/db";
-import inventoryModel from "./models/inventory.model";
+import checkoutIdempotencyModel from "./models/checkoutIdempotency.model";
 import { handleStripeWebhook } from "./controllers/payment.controller";
 import { verifyStripeWebhookSignature } from "./middleware/stripeWebhook";
 import hasuraRoutes from "./routes/hasura";
+import { ensureInventoryCleanupTemporalCron } from "./temporal/client";
 
 
 const app = express();
@@ -119,32 +120,26 @@ const start = async (): Promise<void> => {
     console.log("🔄 Connecting to database...");
     await initDb();
     console.log("✅ Database connected");
+    await ensureInventoryCleanupTemporalCron();
 
     // 🚀 Start Express server
     app.listen(PORT, () => {
       console.log(`🚀 API running on port ${PORT}`);
     });
 
-    /* ============================================================
-       INVENTORY CLEANUP CRON JOB
-       Runs every minute
-    ============================================================ */
-
-    cron.schedule("* * * * *", async () => {
-      console.log("⏳ Running inventory cleanup job...");
+    cron.schedule("*/10 * * * *", async () => {
+      console.log("⏳ Running checkout idempotency cleanup job...");
 
       try {
-        const count = await inventoryModel.releaseExpired();
-
+        const count = await checkoutIdempotencyModel.purgeExpired();
         if (count > 0) {
-          console.log(`✅ Released ${count} expired reservations`);
+          console.log(`✅ Removed ${count} expired checkout idempotency records`);
         }
       } catch (err) {
-        console.error("❌ Inventory cleanup error:", err);
+        console.error("❌ Checkout idempotency cleanup error:", err);
       }
     });
-
-    console.log("🕒 Inventory cleanup cron scheduled (every 1 minute)");
+    console.log("🕒 Checkout idempotency cleanup cron scheduled (every 10 minutes)");
 
   } catch (error) {
     console.error("❌ Failed to start server:", error);

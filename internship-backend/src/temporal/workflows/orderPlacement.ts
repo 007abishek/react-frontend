@@ -25,19 +25,19 @@ const {
   startToCloseTimeout: "1 minute",
   retry: {
     initialInterval: "1s",
-    maximumInterval: "30s",
+    maximumInterval: "1 minute",
     backoffCoefficient: 2,
-    maximumAttempts: 3,
+    maximumAttempts: 8,
   },
 });
 
 const { sendEmailViaLambdaActivity } = proxyActivities<typeof lambdaActivities>({
   startToCloseTimeout: "2 minutes",
   retry: {
-    initialInterval: "2s",
-    maximumInterval: "1 minute",
+    initialInterval: "5s",
+    maximumInterval: "5 minutes",
     backoffCoefficient: 2,
-    maximumAttempts: 3,
+    maximumAttempts: 6,
   },
 });
 
@@ -86,7 +86,7 @@ export async function orderPlacementWorkflow(
     await validateInventoryActivity(input.items);
 
     // Activity: reserveInventory()
-    reservationIds = await reserveInventoryActivity(input.userId, input.items);
+    reservationIds = await reserveInventoryActivity(input.userId, input.items, input.orderId);
 
     // Fire inventory release timeout workflow (5 min)
     await startChild(inventoryReleaseWorkflow, {

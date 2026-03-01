@@ -5,6 +5,7 @@ export interface ReservationRow {
   id: number;
   user_id: number;
   product_id: number;
+  order_external_id?: string | null;
   quantity: number;
   status: string;
   expires_at: Date;
@@ -42,7 +43,8 @@ const checkAvailability = async (
 
 const reserve = async (
   userId: number,
-  items: { productId: number; quantity: number }[]
+  items: { productId: number; quantity: number }[],
+  orderExternalId?: string
 ): Promise<{ success: boolean; reservations?: ReservationRow[]; error?: string }> => {
   return db.transaction(async (trx: Knex.Transaction) => {
     const productIds = Array.from(new Set(items.map((item) => item.productId)));
@@ -98,6 +100,7 @@ const reserve = async (
         items.map((item) => ({
           user_id: userId,
           product_id: item.productId,
+          order_external_id: orderExternalId ?? null,
           quantity: item.quantity,
           status: "pending",
           expires_at: expiresAt,
@@ -186,6 +189,16 @@ const getPendingByUser = async (userId: number): Promise<ReservationRow[]> => {
     .orderBy("r.created_at", "desc");
 };
 
+const getPendingByOrderExternalIds = async (orderExternalIds: string[]): Promise<ReservationRow[]> => {
+  if (orderExternalIds.length === 0) return [];
+
+  return db<ReservationRow>("inventory_reservations")
+    .select("*")
+    .whereIn("order_external_id", orderExternalIds)
+    .andWhere("status", "pending")
+    .orderBy("created_at", "desc");
+};
+
 const releaseExpired = async (): Promise<number> => {
   const rows = await db("inventory_reservations")
     .where("status", "pending")
@@ -211,6 +224,7 @@ export default {
   confirm,
   release,
   getPendingByUser,
+  getPendingByOrderExternalIds,
   releaseExpired,
   getByIntentId,
 };

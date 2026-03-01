@@ -41,7 +41,24 @@ export interface CreateOrderInput {
 }
 
 const create = async (input: CreateOrderInput): Promise<OrderRow> =>
-  db.transaction(async (trx: Knex.Transaction) => {
+  createWithTrx(input);
+
+const createWithTrx = async (
+  input: CreateOrderInput,
+  trx?: Knex.Transaction
+): Promise<OrderRow> => {
+  if (trx) {
+    return insertOrderGraph(trx, input);
+  }
+
+  return db.transaction(async (txn: Knex.Transaction) => insertOrderGraph(txn, input));
+};
+
+const insertOrderGraph = async (
+  trx: Knex.Transaction,
+  input: CreateOrderInput
+): Promise<OrderRow> =>
+  (async () => {
     const rows = (await trx("orders")
       .insert({
         user_id: input.userId,
@@ -82,7 +99,7 @@ const create = async (input: CreateOrderInput): Promise<OrderRow> =>
     });
 
     return order;
-  });
+  })();
 
 const getByUserId = async (userId: number): Promise<any[]> => {
   const orders = await db<OrderRow>("orders")
@@ -245,11 +262,44 @@ const updateStatus = async (orderId: string, status: string): Promise<void> => {
     });
 };
 
+const cancelPendingByUser = async (
+  userId: number,
+  exceptOrderId?: string
+): Promise<Array<{ id: number; order_id: string }>> => {
+  const pendingOrders = await db("orders")
+    .select("id", "order_id")
+    .where({ user_id: userId, status: "pending" })
+    .modify((qb) => {
+      if (exceptOrderId) {
+        qb.andWhereNot({ order_id: exceptOrderId });
+      }
+    });
+
+  if (pendingOrders.length === 0) return [];
+
+  const pendingOrderIds = pendingOrders.map((row: { id: number }) => row.id);
+
+  const rows = await db("orders")
+    .whereIn("id", pendingOrderIds)
+    .update({
+      status: "cancelled",
+      updated_at: db.fn.now(),
+    })
+    .returning(["id", "order_id"]);
+
+  return rows.map((row: { id: number; order_id: string }) => ({
+    id: Number(row.id),
+    order_id: String(row.order_id),
+  }));
+};
+
 export default {
   create,
+  createWithTrx,
   getByUserId,
   getByOrderId,
   getByOrderIdAny,
   getWorkflowDataByOrderId,
   updateStatus,
+  cancelPendingByUser,
 };

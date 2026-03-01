@@ -1,8 +1,9 @@
-import CartModel from "../../models/cart.model";
 import InventoryModel from "../../models/inventory.model";
 import OrderModel from "../../models/order.model";
 import db from "../../config/knex";
-import { toPaymentStatus } from "../../controllers/hasura/helpers";
+import { toPaymentStatus } from "../../shared/payments/paymentStatus";
+import { createHash } from "crypto";
+import { cancelWorkflowById } from "../../temporal/client";
 
 type SessionUser = {
   userId: number;
@@ -33,7 +34,7 @@ type CreateOrderInput = {
   orderDate?: string;
 };
 
-export async function createOrderFromActionInput(session: SessionUser, input: CreateOrderInput): Promise<{
+type CreateOrderActionResponse = {
   orderId: string;
   orderDate: string;
   status: string;
@@ -41,7 +42,45 @@ export async function createOrderFromActionInput(session: SessionUser, input: Cr
   paymentStatus: string;
   paymentMethod: string;
   total: number;
-}> {
+};
+
+type CreateOrderTxResult = CreateOrderActionResponse & {
+  cancelledOrderExternalIds?: string[];
+};
+
+const buildCheckoutRequestHash = (params: {
+  userId: number;
+  paymentMethod: string;
+  items: Array<{ productId: number; quantity: number; price: number }>;
+  address: {
+    fullName: string;
+    phone: string;
+    email: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    state: string;
+    pincode: string;
+  };
+  total: number;
+}): string => {
+  const payload = {
+    userId: params.userId,
+    paymentMethod: params.paymentMethod.trim().toLowerCase(),
+    items: [...params.items].sort((a, b) => a.productId - b.productId),
+    address: params.address,
+    total: Number(params.total.toFixed(2)),
+  };
+
+  return createHash("sha256")
+    .update(JSON.stringify(payload))
+    .digest("hex");
+};
+
+export async function createOrderFromActionInput(
+  session: SessionUser,
+  input: CreateOrderInput
+): Promise<CreateOrderActionResponse> {
   const { items, address, paymentMethod, orderId, orderDate } = input;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -103,6 +142,7 @@ export async function createOrderFromActionInput(session: SessionUser, input: Cr
   }
 
   const finalOrderId = orderId || `ORD-${Date.now()}`;
+
   const orderItems = normalizedItems.map((item) => {
     const product = productMap.get(item.productId);
     if (!product) {
@@ -119,13 +159,14 @@ export async function createOrderFromActionInput(session: SessionUser, input: Cr
   });
 
   const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-  await OrderModel.create({
+  const requestHash = buildCheckoutRequestHash({
     userId: session.userId,
-    firebaseUid: session.firebaseUid,
-    orderId: finalOrderId,
     paymentMethod,
-    items: orderItems,
+    items: orderItems.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      price: Number(item.price ?? 0),
+    })),
     address: {
       fullName: address.fullName,
       phone: address.phone,
@@ -136,19 +177,159 @@ export async function createOrderFromActionInput(session: SessionUser, input: Cr
       state: address.state,
       pincode: address.pincode,
     },
-    subtotal,
     total: subtotal,
   });
+  // Attempt-scoped idempotency key from client-provided order/attempt id.
+  const idempotencyKey = `attempt:${finalOrderId}`;
 
-  await CartModel.clearCart(session.userId);
+  const result = await db.transaction(async (trx): Promise<CreateOrderTxResult> => {
+    const idempotentRecord = await trx("checkout_idempotency")
+      .select("order_external_id", "expires_at")
+      .where({
+        user_id: session.userId,
+        idempotency_key: idempotencyKey,
+      })
+      .first()
+      .forUpdate();
 
-  return {
-    orderId: finalOrderId,
-    orderDate: orderDate || new Date().toISOString(),
-    status: "pending",
-    orderStatus: "pending",
-    paymentStatus: toPaymentStatus(paymentMethod, "pending"),
-    paymentMethod,
-    total: subtotal,
-  };
+    const hasValidIdempotencyWindow =
+      Boolean(idempotentRecord?.expires_at) &&
+      new Date(String(idempotentRecord.expires_at)).getTime() > Date.now();
+
+    if (idempotentRecord?.order_external_id && hasValidIdempotencyWindow) {
+      const existingOrder = await OrderModel.getByOrderId(
+        String(idempotentRecord.order_external_id),
+        session.userId
+      );
+      if (existingOrder && String(existingOrder.status).toLowerCase() !== "cancelled") {
+        return {
+          orderId: String(existingOrder.order_id),
+          orderDate: existingOrder.created_at
+            ? new Date(existingOrder.created_at).toISOString()
+            : (orderDate || new Date().toISOString()),
+          status: String(existingOrder.status ?? "pending"),
+          orderStatus: String(existingOrder.status ?? "pending"),
+          paymentStatus: toPaymentStatus(paymentMethod, "pending"),
+          paymentMethod,
+          total: Number(existingOrder.total ?? 0),
+        };
+      }
+    }
+
+    const explicitOrder = await trx("orders")
+      .select("order_id", "status", "total", "created_at")
+      .where({ order_id: finalOrderId, user_id: session.userId })
+      .first();
+
+    if (explicitOrder) {
+      return {
+        orderId: String(explicitOrder.order_id),
+        orderDate: explicitOrder.created_at
+          ? new Date(explicitOrder.created_at).toISOString()
+          : (orderDate || new Date().toISOString()),
+        status: String(explicitOrder.status ?? "pending"),
+        orderStatus: String(explicitOrder.status ?? "pending"),
+        paymentStatus: toPaymentStatus(paymentMethod, "pending"),
+        paymentMethod,
+        total: Number(explicitOrder.total ?? 0),
+      };
+    }
+
+    const pendingOrders = await trx("orders")
+      .select("id", "order_id")
+      .where({ user_id: session.userId, status: "pending" })
+      .andWhereNot("order_id", finalOrderId)
+      .forUpdate();
+    let cancelledOrderExternalIds: string[] = [];
+
+    if (pendingOrders.length > 0) {
+      const pendingOrderDbIds = pendingOrders.map((row: { id: number }) => Number(row.id));
+      const pendingOrderExternalIds = pendingOrders.map((row: { order_id: string }) => String(row.order_id));
+      cancelledOrderExternalIds = pendingOrderExternalIds;
+
+      await trx("orders")
+        .whereIn("id", pendingOrderDbIds)
+        .update({ status: "cancelled", updated_at: trx.fn.now() });
+
+      await trx("payments")
+        .whereIn("order_id", pendingOrderDbIds)
+        .whereIn("status", ["pending", "processing"])
+        .update({ status: "cancelled", updated_at: trx.fn.now() });
+
+      await trx("inventory_reservations")
+        .whereIn("order_external_id", pendingOrderExternalIds)
+        .andWhere("status", "pending")
+        .update({ status: "cancelled" });
+    }
+
+    await OrderModel.createWithTrx(
+      {
+        userId: session.userId,
+        firebaseUid: session.firebaseUid,
+        orderId: finalOrderId,
+        paymentMethod,
+        items: orderItems,
+        address: {
+          fullName: address.fullName,
+          phone: address.phone,
+          email: address.email,
+          addressLine1: address.addressLine1,
+          addressLine2: address.addressLine2 || "",
+          city: address.city,
+          state: address.state,
+          pincode: address.pincode,
+        },
+        subtotal,
+        total: subtotal,
+      },
+      trx
+    );
+
+    await trx("checkout_idempotency")
+      .insert({
+        user_id: session.userId,
+        idempotency_key: idempotencyKey,
+        request_hash: requestHash,
+        order_external_id: finalOrderId,
+        expires_at: trx.raw("NOW() + INTERVAL '24 hours'"),
+      })
+      .onConflict(["user_id", "idempotency_key"])
+      .merge({
+        request_hash: requestHash,
+        order_external_id: finalOrderId,
+        expires_at: trx.raw("NOW() + INTERVAL '24 hours'"),
+        updated_at: trx.fn.now(),
+      });
+
+    await trx("cart_items")
+      .where({ user_id: session.userId })
+      .del();
+
+    return {
+      orderId: finalOrderId,
+      orderDate: orderDate || new Date().toISOString(),
+      status: "pending",
+      orderStatus: "pending",
+      paymentStatus: toPaymentStatus(paymentMethod, "pending"),
+      paymentMethod,
+      total: subtotal,
+      cancelledOrderExternalIds,
+    };
+  });
+
+  if (result.cancelledOrderExternalIds && result.cancelledOrderExternalIds.length > 0) {
+    await Promise.all(
+      result.cancelledOrderExternalIds.map(async (oldOrderId) => {
+        try {
+          await cancelWorkflowById(`order-${oldOrderId}`);
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(`Failed to cancel superseded workflow order-${oldOrderId}:`, message);
+        }
+      })
+    );
+  }
+
+  const { cancelledOrderExternalIds, ...response } = result;
+  return response;
 }

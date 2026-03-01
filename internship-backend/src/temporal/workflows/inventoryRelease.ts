@@ -5,9 +5,9 @@ const { releaseInventoryActivity, checkReservationStatusActivity } = proxyActivi
   startToCloseTimeout: "1 minute",
   retry: {
     initialInterval: "1s",
-    maximumInterval: "30s",
+    maximumInterval: "1 minute",
     backoffCoefficient: 2,
-    maximumAttempts: 3,
+    maximumAttempts: 8,
   },
 });
 

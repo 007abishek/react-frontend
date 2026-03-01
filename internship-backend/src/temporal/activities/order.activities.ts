@@ -22,9 +22,10 @@ export async function validateInventoryActivity(
 // Required by Phase 7: reserveInventory()
 export async function reserveInventoryActivity(
   userId: number,
-  items: Array<{ productId: number; quantity: number }>
+  items: Array<{ productId: number; quantity: number }>,
+  orderId?: string
 ): Promise<number[]> {
-  const result = await InventoryModel.reserve(userId, items);
+  const result = await InventoryModel.reserve(userId, items, orderId);
   if (!result.success || !result.reservations) {
     throw new Error(result.error || "Failed to reserve inventory");
   }

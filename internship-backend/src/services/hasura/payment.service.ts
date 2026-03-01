@@ -1,6 +1,54 @@
 import { stripe } from "../../config/stripe";
+import InventoryModel from "../../models/inventory.model";
 import OrderModel from "../../models/order.model";
 import PaymentModel from "../../models/payment.model";
+import { getWorkflowHandle } from "../../temporal/client";
+
+const TERMINAL_WORKFLOW_STATUSES = new Set([
+  "TERMINATED",
+  "FAILED",
+  "TIMED_OUT",
+  "CANCELED",
+  "CANCELLED",
+]);
+
+async function reconcilePendingOrderForTerminalWorkflow(order: any, payment: any): Promise<void> {
+  const orderStatus = String(order?.status ?? "").toLowerCase();
+  if (orderStatus !== "pending") return;
+
+  try {
+    const workflowHandle = await getWorkflowHandle(`order-${order.order_id}`);
+    const description = await workflowHandle.describe();
+    const statusValue =
+      (description as any)?.status?.name ?? (description as any)?.status ?? "";
+    const workflowStatus = String(statusValue).toUpperCase();
+
+    if (!TERMINAL_WORKFLOW_STATUSES.has(workflowStatus)) {
+      return;
+    }
+
+    await OrderModel.updateStatus(order.order_id, "cancelled");
+
+    const paymentStatus = String(payment?.status ?? "").toLowerCase();
+    if (paymentStatus === "pending" || paymentStatus === "processing") {
+      await PaymentModel.updateByOrderId(order.id, { status: "cancelled" });
+    }
+
+    const reservations = await InventoryModel.getPendingByOrderExternalIds([order.order_id]);
+    if (reservations.length > 0) {
+      await InventoryModel.release(
+        reservations.map((reservation) => reservation.id),
+        "cancelled"
+      );
+    }
+  } catch (error) {
+    // Ignore reconciliation issues and fallback to stored DB status/payment state.
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.toLowerCase().includes("not found")) {
+      console.warn("Temporal reconciliation skipped:", message);
+    }
+  }
+}
 
 export async function getPaymentStatusForOrder(orderId: string, userId: number): Promise<{
   status: string;
@@ -13,10 +61,13 @@ export async function getPaymentStatusForOrder(orderId: string, userId: number):
     throw new Error("Order not found");
   }
 
-  const payment = await PaymentModel.getByOrderId(order.id);
+  let payment = await PaymentModel.getByOrderId(order.id);
   if (!payment) {
     throw new Error("Payment not found");
   }
+
+  await reconcilePendingOrderForTerminalWorkflow(order, payment);
+  payment = (await PaymentModel.getByOrderId(order.id)) ?? payment;
 
   return {
     status: payment.status,

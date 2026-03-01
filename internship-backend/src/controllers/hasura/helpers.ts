@@ -1,4 +1,5 @@
 import { Request } from "express";
+import { toPaymentStatus } from "../../shared/payments/paymentStatus";
 
 export type HasuraSessionUser = {
   userId: number;
@@ -35,21 +36,4 @@ export function getHasuraSessionUser(req: Request): HasuraSessionUser | null {
   return { userId, firebaseUid };
 }
 
-export function toPaymentStatus(paymentMethod: string, orderStatus: string, rawPaymentStatus?: string): string {
-  const normalizedMethod = paymentMethod.trim().toLowerCase();
-  if (normalizedMethod === "cod") return "not_required";
-
-  if (rawPaymentStatus) return rawPaymentStatus;
-
-  const normalizedOrderStatus = orderStatus.trim().toLowerCase();
-  if (normalizedOrderStatus === "cancelled") return "cancelled";
-  if (
-    normalizedOrderStatus === "confirmed" ||
-    normalizedOrderStatus === "processing" ||
-    normalizedOrderStatus === "shipped" ||
-    normalizedOrderStatus === "delivered"
-  ) {
-    return "succeeded";
-  }
-  return "pending";
-}
+export { toPaymentStatus };

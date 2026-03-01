@@ -129,10 +129,26 @@ const updateByOrderId = async (
   return rows[0] ?? null;
 };
 
+const cancelPendingByOrderIds = async (orderIds: number[]): Promise<number> => {
+  if (orderIds.length === 0) return 0;
+
+  const rows = await db<PaymentRow>("payments")
+    .whereIn("order_id", orderIds)
+    .whereIn("status", ["pending", "processing"])
+    .update({
+      status: "cancelled",
+      updated_at: db.fn.now(),
+    })
+    .returning("id");
+
+  return rows.length;
+};
+
 export default {
   create,
   updateStatus,
   getByIntentId,
   getByOrderId,
   updateByOrderId,
+  cancelPendingByOrderIds,
 };

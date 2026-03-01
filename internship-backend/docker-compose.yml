@@ -2,11 +2,11 @@
 
 services:
   # ──────────────────────────────────────────────────────────────
-  # PostgreSQL Database
+  # PostgreSQL Database (App + Hasura)
   # ──────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: ecom_postgres
+    container_name: ecom_postgres_app
     environment:
       POSTGRES_USER: ecom_user
       POSTGRES_PASSWORD: ecom_pass
@@ -36,6 +36,31 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Temporal Persistence Database (separate from app DB)
+  temporal-postgres:
+    image: postgres:16-alpine
+    container_name: ecom_postgres_temporal
+    environment:
+      POSTGRES_USER: temporal_user
+      POSTGRES_PASSWORD: temporal_pass
+      POSTGRES_DB: temporal_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - temporal_postgres_data:/var/lib/postgresql/data
+    networks:
+      - ecom_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal_user -d temporal_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # ──────────────────────────────────────────────────────────────
   # Temporal Workflow Engine
   # ──────────────────────────────────────────────────────────────
@@ -45,14 +70,15 @@ services:
     environment:
       - DB=postgresql
       - DB_PORT=5432
-      - POSTGRES_USER=ecom_user
-      - POSTGRES_PWD=ecom_pass
-      - POSTGRES_SEEDS=postgres
+      - POSTGRES_USER=temporal_user
+      - POSTGRES_PWD=temporal_pass
+      - POSTGRES_SEEDS=temporal-postgres
+      - POSTGRES_DB=temporal_db
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
     ports:
       - "7233:7233"
     depends_on:
-      postgres:
+      temporal-postgres:
         condition: service_healthy
     networks:
       - ecom_network
@@ -308,4 +334,6 @@ networks:
 
 volumes:
   postgres_data:
+    driver: local
+  temporal_postgres_data:
     driver: local

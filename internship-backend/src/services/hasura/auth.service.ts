@@ -1,7 +1,7 @@
 import * as jwt from "jsonwebtoken";
 import admin from "../../config/firebase";
 import db from "../../config/knex";
-import { signHasuraToken } from "../../controllers/hasura/authToken";
+import { signHasuraToken } from "../../shared/auth/hasuraToken";
 
 interface UserRow {
   id: number;

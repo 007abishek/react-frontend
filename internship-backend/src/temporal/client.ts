@@ -56,3 +56,43 @@ export async function startWorkflowIdempotent(params: {
     throw error;
   }
 }
+
+// Best-effort cancellation for superseded attempts.
+export async function cancelWorkflowById(workflowId: string): Promise<void> {
+  try {
+    const handle = await getWorkflowHandle(workflowId);
+    await handle.cancel();
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const lowered = message.toLowerCase();
+    if (
+      lowered.includes("not found") ||
+      lowered.includes("already completed") ||
+      lowered.includes("already closed")
+    ) {
+      return;
+    }
+    throw error;
+  }
+}
+
+// Ensure a Temporal-server-managed cron workflow exists for inventory cleanup.
+export async function ensureInventoryCleanupTemporalCron(): Promise<void> {
+  const client = await getTemporalClient();
+
+  try {
+    await client.workflow.start("inventoryCleanupSweepWorkflow", {
+      workflowId: "inventory-cleanup-sweep-cron",
+      taskQueue: "ecommerce-orders",
+      cronSchedule: "* * * * *",
+    });
+    console.log("✅ Temporal inventory cleanup cron workflow started");
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.toLowerCase().includes("already started")) {
+      console.log("ℹ️ Temporal inventory cleanup cron workflow already active");
+      return;
+    }
+    throw error;
+  }
+}

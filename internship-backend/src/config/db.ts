@@ -119,6 +119,16 @@ await pool.query(`
   WHERE status = 'pending'
 `);
 
+await pool.query(`
+  ALTER TABLE inventory_reservations
+  ADD COLUMN IF NOT EXISTS order_external_id TEXT
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_inventory_reservations_order_external_id
+  ON inventory_reservations(order_external_id)
+`);
+
    /* ============================
        ORDERS TABLE
       ==========================*/
@@ -222,6 +232,35 @@ await pool.query(`
 await pool.query(`
   CREATE INDEX IF NOT EXISTS idx_payments_stripe_intent
   ON payments(stripe_payment_intent_id)
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS checkout_idempotency (
+    id                SERIAL PRIMARY KEY,
+    user_id           INTEGER   NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    idempotency_key   TEXT      NOT NULL,
+    request_hash      TEXT      NOT NULL,
+    order_external_id TEXT,
+    expires_at        TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'),
+    created_at        TIMESTAMP DEFAULT NOW(),
+    updated_at        TIMESTAMP DEFAULT NOW(),
+    UNIQUE(user_id, idempotency_key)
+  )
+`);
+
+await pool.query(`
+  ALTER TABLE checkout_idempotency
+  ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '24 hours')
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_checkout_idempotency_order_external_id
+  ON checkout_idempotency(order_external_id)
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_checkout_idempotency_expires_at
+  ON checkout_idempotency(expires_at)
 `);
 
   

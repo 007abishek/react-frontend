@@ -1,6 +1,6 @@
 import * as jwt from "jsonwebtoken";
 
-type HasuraTokenInput = {
+export type HasuraTokenInput = {
   userId: number;
   uid: string;
   isGuest: boolean;
@@ -29,3 +29,4 @@ export function signHasuraToken(input: HasuraTokenInput): string {
     { expiresIn: "1h" }
   );
 }
+

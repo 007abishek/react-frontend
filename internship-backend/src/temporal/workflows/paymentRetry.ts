@@ -9,9 +9,9 @@ const {
   startToCloseTimeout: "1 minute",
   retry: {
     initialInterval: "1s",
-    maximumInterval: "30s",
+    maximumInterval: "1 minute",
     backoffCoefficient: 2,
-    maximumAttempts: 3,
+    maximumAttempts: 8,
   },
 });
 
@@ -27,7 +27,7 @@ export interface PaymentRetryInput {
 export async function paymentRetryWorkflow(
   input: PaymentRetryInput
 ): Promise<{ success: boolean; attempts: number }> {
-  const maxAttempts = input.maxAttempts ?? 3;
+  const maxAttempts = input.maxAttempts ?? 5;
   const retryWaitMinutes = input.retryWaitMinutes ?? 2;
 
   let paid = false;

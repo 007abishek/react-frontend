@@ -89,6 +89,42 @@ function getErrorMessage(err: unknown): string {
   return "Failed to place order. Please try again.";
 }
 
+function buildCheckoutSignature(params: {
+  items: Array<{ id: number; quantity: number; price: number }>;
+  address: {
+    fullName: string;
+    phone: string;
+    email: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    state: string;
+    pincode: string;
+  };
+  paymentMethod: "cod" | "card" | "upi";
+  total: number;
+}): string {
+  return JSON.stringify({
+    items: params.items
+      .map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        price: item.price,
+      }))
+      .sort((a, b) => a.id - b.id),
+    address: params.address,
+    paymentMethod: params.paymentMethod,
+    total: Number(params.total.toFixed(2)),
+  });
+}
+
+function generateCheckoutAttemptId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `ORD-${crypto.randomUUID()}`;
+  }
+  return `ORD-${Date.now()}`;
+}
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -104,6 +140,7 @@ export default function CheckoutPage() {
   const [orderId, setOrderId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [createdOrderData, setCreatedOrderData] = useState<Record<string, unknown> | null>(null);
+  const [createdOrderSignature, setCreatedOrderSignature] = useState("");
 
   // Address State
   const [address, setAddress] = useState({
@@ -223,25 +260,43 @@ export default function CheckoutPage() {
     setIsPlacing(true);
     setError("");
 
+    const currentSignature = buildCheckoutSignature({
+      items: cartItems.map((item) => ({ id: item.id, quantity: item.quantity, price: item.price })),
+      address,
+      paymentMethod,
+      total: calculateTotal(),
+    });
+    const canReuseExistingOrder =
+      Boolean(orderId) &&
+      Boolean(createdOrderData) &&
+      createdOrderSignature === currentSignature;
+
+    const stableOrderId = canReuseExistingOrder ? orderId : generateCheckoutAttemptId();
     const orderData = {
       items: cartItems,
       address,
       paymentMethod,
-    
-      
       total: calculateTotal(),
-      orderId: `ORD-${Date.now()}`,
+      orderId: stableOrderId,
       orderDate: new Date().toISOString(),
     };
 
     try {
-      const createdOrder = await createOrderViaAction(orderData);
-      const createdOrderId = createdOrder.orderId;
-      setOrderId(createdOrderId);
-      setCreatedOrderData({
-        ...orderData,
-        ...createdOrder,
-      });
+      let createdOrderId = stableOrderId;
+      let nextOrderData = createdOrderData;
+
+      // Reuse only when checkout data is unchanged; edits create a new order attempt.
+      if (!canReuseExistingOrder) {
+        const createdOrder = await createOrderViaAction(orderData);
+        createdOrderId = createdOrder.orderId;
+        nextOrderData = {
+          ...orderData,
+          ...createdOrder,
+        };
+        setOrderId(createdOrderId);
+        setCreatedOrderData(nextOrderData);
+        setCreatedOrderSignature(currentSignature);
+      }
 
       // Step 2: Handle Payment Based on Method
       if (paymentMethod === "cod") {
@@ -250,7 +305,7 @@ export default function CheckoutPage() {
           state: {
             orderData: {
               ...orderData,
-              ...createdOrder,
+              ...(nextOrderData || {}),
             },
           },
         });

@@ -50,7 +50,7 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<vo
         if (order) {
           await OrderModel.updateStatus(order.order_id, "cancelled");
 
-          const reservations = await InventoryModel.getPendingByUser(payment.user_id);
+          const reservations = await InventoryModel.getPendingByOrderExternalIds([order.order_id]);
           if (reservations.length > 0) {
             const reservationIds = reservations.map((r) => r.id);
             await InventoryModel.release(reservationIds, "cancelled");
