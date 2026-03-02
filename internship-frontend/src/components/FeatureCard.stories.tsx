@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+
 import FeatureCard from "./FeatureCard";
 
 const meta: Meta<typeof FeatureCard> = {
@@ -15,16 +16,16 @@ export const Todos: Story = {
     title: "Todos",
     description: "Manage your daily tasks efficiently",
     route: "/todos",
-    icon: "📝"
+    icon: "📝",
   },
 };
 
-export const GitHub: Story = {
+export const Github: Story = {
   args: {
     title: "GitHub Explorer",
     description: "Search GitHub users and repositories",
     route: "/github",
-    icon: "🔍"
+    icon: "🔍",
   },
 };
 
@@ -33,33 +34,6 @@ export const Products: Story = {
     title: "Products",
     description: "Browse products and manage your cart",
     route: "/products",
-    icon: "🛒"
+    icon: "🛒",
   },
-};
-
-export const Darktodo: Story = {
-  args: {
-    title: "Todos",
-    description: "Manage your daily tasks efficiently",
-    route: "/todos",
-    icon: "📝"
-  }
-};
-
-export const Darkgithub: Story = {
-  args: {
-    title: "GitHub Explorer",
-    description: "Search GitHub users and repositories",
-    route: "/github",
-    icon: "🔍"
-  }
-};
-
-export const Darkproduct: Story = {
-  args: {
-    title: "Products",
-    description: "Browse products and manage your cart",
-    route: "/products",
-    icon: "🛒\n\n"
-  }
 };

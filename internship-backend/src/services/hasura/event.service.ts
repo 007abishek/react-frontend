@@ -1,5 +1,6 @@
 import OrderModel from "../../models/order.model";
 import { startWorkflowIdempotent } from "../../temporal/client";
+import { TEMPORAL_TASK_QUEUE } from "../../temporal/config";
 
 export async function processOrderInsertedEvent(orderId: string): Promise<void> {
   const workflowData = await OrderModel.getWorkflowDataByOrderId(orderId);
@@ -9,7 +10,7 @@ export async function processOrderInsertedEvent(orderId: string): Promise<void> 
 
   await startWorkflowIdempotent({
     workflowType: "orderPlacementWorkflow",
-    taskQueue: "ecommerce-orders",
+    taskQueue: TEMPORAL_TASK_QUEUE,
     workflowId: `order-${workflowData.order_id}`,
     args: [
       {
@@ -21,6 +22,7 @@ export async function processOrderInsertedEvent(orderId: string): Promise<void> 
           ? new Date(workflowData.created_at).toISOString()
           : undefined,
         amount: Number(workflowData.total),
+        taskQueue: TEMPORAL_TASK_QUEUE,
         items: workflowData.items.map((item: any) => ({
           productId: item.product_id,
           quantity: item.quantity,

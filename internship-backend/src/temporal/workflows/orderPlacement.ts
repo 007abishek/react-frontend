@@ -1,8 +1,11 @@
 import {
+  ApplicationFailure,
+  CancellationScope,
   ParentClosePolicy,
   condition,
   defineSignal,
   proxyActivities,
+  rootCause,
   setHandler,
   startChild,
 } from "@temporalio/workflow";
@@ -50,8 +53,29 @@ export interface OrderPlacementInput {
   paymentMethod: string;
   orderDate?: string;
   amount: number;
+  taskQueue?: string;
   items: Array<{ productId: number; quantity: number }>;
   createOrderInput: CreateOrderInput;
+}
+
+function isBusinessFailure(error: unknown): boolean {
+  const root = rootCause(error);
+  const message = typeof root === "string" ? root.toLowerCase() : String(root).toLowerCase();
+
+  return (
+    message.includes("payment timeout") ||
+    message.includes("insufficient stock") ||
+    message.includes("invalid quantity") ||
+    message.includes("invalid product") ||
+    message.includes("items array required") ||
+    message.includes("complete address required") ||
+    message.includes("paymentmethod required")
+  );
+}
+
+function getRootErrorMessage(error: unknown): string {
+  const root = rootCause(error);
+  return typeof root === "string" && root.trim() ? root : "Order workflow failed";
 }
 
 export async function orderPlacementWorkflow(
@@ -59,6 +83,8 @@ export async function orderPlacementWorkflow(
 ): Promise<{ success: boolean; status: string; orderId: string }> {
   let paymentReceived = false;
   let reservationIds: number[] = [];
+  let inventoryReleaseScope: CancellationScope | null = null;
+  let inventoryReleasePromise: Promise<unknown> | null = null;
   const orderDate = input.orderDate || new Date().toISOString();
   const expectedDeliveryDate = new Date(
     new Date(orderDate).getTime() + 3 * 24 * 60 * 60 * 1000
@@ -89,17 +115,21 @@ export async function orderPlacementWorkflow(
     reservationIds = await reserveInventoryActivity(input.userId, input.items, input.orderId);
 
     // Fire inventory release timeout workflow (5 min)
-    await startChild(inventoryReleaseWorkflow, {
-      workflowId: `inventory-release-${input.orderId}`,
-      taskQueue: "ecommerce-orders",
-      parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL,
-      args: [
-        {
-          reservationIds,
-          orderId: input.orderId,
-          waitMinutes: 5,
-        },
-      ],
+    inventoryReleaseScope = new CancellationScope();
+    inventoryReleasePromise = inventoryReleaseScope.run(async () => {
+      const child = await startChild(inventoryReleaseWorkflow, {
+        workflowId: `inventory-release-${input.orderId}`,
+        taskQueue: input.taskQueue || "ecommerce-orders",
+        parentClosePolicy: ParentClosePolicy.PARENT_CLOSE_POLICY_REQUEST_CANCEL,
+        args: [
+          {
+            reservationIds,
+            orderId: input.orderId,
+            waitMinutes: 5,
+          },
+        ],
+      });
+      return child.result();
     });
 
     // Activity: createOrder()
@@ -137,8 +167,19 @@ export async function orderPlacementWorkflow(
       // Keep order confirmed even if email fails.
     }
 
+    if (inventoryReleaseScope && inventoryReleasePromise) {
+      // Child is only a timeout safety net; cancel once order is finalized.
+      inventoryReleaseScope.cancel();
+      try {
+        await inventoryReleasePromise;
+      } catch {
+        // Expected when canceled; ignore.
+      }
+    }
+
     return { success: true, status: "confirmed", orderId: input.orderId };
   } catch (error) {
+    const businessFailure = isBusinessFailure(error);
     if (reservationIds.length > 0) {
       await releaseInventoryActivity(reservationIds);
     }
@@ -152,6 +193,22 @@ export async function orderPlacementWorkflow(
       // Keep workflow deterministic even if email fails.
     }
 
-    return { success: false, status: "cancelled", orderId: input.orderId };
+    if (inventoryReleaseScope && inventoryReleasePromise) {
+      inventoryReleaseScope.cancel();
+      try {
+        await inventoryReleasePromise;
+      } catch {
+        // Expected when canceled; ignore.
+      }
+    }
+
+    if (businessFailure) {
+      return { success: false, status: "cancelled", orderId: input.orderId };
+    }
+
+    throw ApplicationFailure.retryable(
+      getRootErrorMessage(error),
+      "TransientOrderWorkflowFailure"
+    );
   }
 }

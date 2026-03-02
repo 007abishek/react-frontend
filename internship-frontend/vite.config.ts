@@ -12,6 +12,11 @@ export default defineConfig({
   server: {
     host: true
   },
+  resolve: {
+    alias: {
+      "@": path.resolve(dirname, "src"),
+    },
+  },
   plugins: [react()],
   test: {
     projects: [{

@@ -1,10 +1,10 @@
-import { useState } from "react";
-import AppLayout from "../../components/layout/AppLayout";
-import {
-  useSearchUsersQuery,
-  useSearchReposQuery,
-} from "./githubApi";
-import { useDebounce } from "../../utils/useDebounce";
+import { useMemo, useState } from "react";
+
+import AppLayout from "@/components/layout/AppLayout";
+import { useDebounce } from "@/utils/useDebounce";
+
+import { useSearchReposQuery, useSearchUsersQuery } from "./githubApi";
+import { githubPageSchema, githubSearchQuerySchema } from "./schemas/githubSchemas";
 
 type Mode = "users" | "repos";
 
@@ -14,14 +14,31 @@ export default function GithubPage() {
   const [page, setPage] = useState(1);
 
   const debouncedQuery = useDebounce(query, 500);
-  const showResults = debouncedQuery.trim().length > 0;
+
+  const immediateQueryError = useMemo(() => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return "";
+
+    const validation = githubSearchQuerySchema.safeParse(query);
+    return validation.success ? "" : validation.error.issues[0]?.message ?? "Invalid search query";
+  }, [query]);
+
+  const validatedDebouncedQuery = useMemo(() => {
+    const trimmedQuery = debouncedQuery.trim();
+    if (!trimmedQuery) return "";
+
+    const validation = githubSearchQuerySchema.safeParse(debouncedQuery);
+    return validation.success ? validation.data : "";
+  }, [debouncedQuery]);
+
+  const showResults = validatedDebouncedQuery.length > 0;
 
   const {
     data: usersData,
     isLoading: usersLoading,
     error: usersError,
   } = useSearchUsersQuery(
-    { query: debouncedQuery, page },
+    { query: validatedDebouncedQuery, page },
     { skip: !showResults || mode !== "users" }
   );
 
@@ -30,41 +47,47 @@ export default function GithubPage() {
     isLoading: reposLoading,
     error: reposError,
   } = useSearchReposQuery(
-    { query: debouncedQuery, page },
+    { query: validatedDebouncedQuery, page },
     { skip: !showResults || mode !== "repos" }
   );
 
-  const isRateLimited =
-    (usersError as any)?.status === 403 ||
-    (reposError as any)?.status === 403;
+  const isRateLimited = (usersError as { status?: number } | undefined)?.status === 403 ||
+    (reposError as { status?: number } | undefined)?.status === 403;
+
+  const goToPreviousPage = () => {
+    const nextPage = page - 1;
+    const validation = githubPageSchema.safeParse(nextPage);
+    if (validation.success) {
+      setPage(validation.data);
+    }
+  };
+
+  const goToNextPage = () => {
+    const nextPage = page + 1;
+    const validation = githubPageSchema.safeParse(nextPage);
+    if (validation.success) {
+      setPage(validation.data);
+    }
+  };
 
   return (
     <AppLayout>
-      {/* ===== Header ===== */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          GitHub Search
-        </h1>
-        <p className="mt-1 text-slate-500">
-          Search GitHub users and repositories
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">GitHub Search</h1>
+        <p className="mt-1 text-slate-500">Search GitHub users and repositories</p>
       </div>
 
-      {/* ===== Mode Toggle ===== */}
       <div className="mb-4 grid grid-cols-2 rounded-lg bg-slate-100 p-1 dark:bg-zinc-800 sm:inline-flex">
         <button
           onClick={() => {
             setMode("users");
             setPage(1);
           }}
-          className={`
-            px-4 py-1.5 rounded-md text-sm font-medium transition
-            ${
-              mode === "users"
-                ? "bg-white dark:bg-zinc-900 shadow text-slate-900 dark:text-white"
-                : "text-slate-500 hover:text-slate-900"
-            }
-          `}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${
+            mode === "users"
+              ? "bg-white dark:bg-zinc-900 shadow text-slate-900 dark:text-white"
+              : "text-slate-500 hover:text-slate-900"
+          }`}
         >
           Users
         </button>
@@ -74,74 +97,52 @@ export default function GithubPage() {
             setMode("repos");
             setPage(1);
           }}
-          className={`
-            px-4 py-1.5 rounded-md text-sm font-medium transition
-            ${
-              mode === "repos"
-                ? "bg-white dark:bg-zinc-900 shadow text-slate-900 dark:text-white"
-                : "text-slate-500 hover:text-slate-900"
-            }
-          `}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${
+            mode === "repos"
+              ? "bg-white dark:bg-zinc-900 shadow text-slate-900 dark:text-white"
+              : "text-slate-500 hover:text-slate-900"
+          }`}
         >
           Repositories
         </button>
       </div>
 
-      {/* ===== Search Card ===== */}
-      <div className="mb-6 rounded-xl bg-white dark:bg-zinc-900 p-4 shadow-sm">
+      <div className="mb-6 rounded-xl bg-white p-4 shadow-sm dark:bg-zinc-900">
         <input
           value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
+          onChange={(event) => {
+            setQuery(event.target.value);
             setPage(1);
           }}
           placeholder={`Search GitHub ${mode}`}
-          className="
-            w-full
-            rounded-md
-            border border-slate-300 dark:border-zinc-700
-            bg-white dark:bg-zinc-800
-            px-3 py-2
-            text-slate-900 dark:text-white
-            placeholder-slate-400
-            focus:outline-none
-            focus:ring-2 focus:ring-blue-500
-          "
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
         />
+        {immediateQueryError ? (
+          <p className="mt-2 text-xs text-rose-400">{immediateQueryError}</p>
+        ) : null}
       </div>
 
-      {/* ===== States ===== */}
-      {!showResults && (
-        <p className="text-slate-400 text-sm">
-          Start typing to search GitHub {mode}.
-        </p>
+      {!showResults && !immediateQueryError && (
+        <p className="text-sm text-slate-400">Start typing to search GitHub {mode}.</p>
       )}
 
       {isRateLimited && (
-        <div className="rounded-lg bg-red-50 text-red-600 p-3 text-sm">
+        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
           GitHub API rate limit exceeded. Please try again later.
         </div>
       )}
 
       {(usersLoading || reposLoading) && showResults && (
-        <p className="text-slate-500 text-sm">Loading results…</p>
+        <p className="text-sm text-slate-500">Loading results...</p>
       )}
 
-      {/* ===== Results ===== */}
       <div className="space-y-3">
         {showResults &&
           mode === "users" &&
           usersData?.items.map((user) => (
             <div
               key={user.login}
-              className="
-                rounded-lg
-                bg-white dark:bg-zinc-900
-                p-4
-                shadow-sm
-                transition
-                hover:shadow-md
-              "
+              className="rounded-lg bg-white p-4 shadow-sm transition hover:shadow-md dark:bg-zinc-900"
             >
               <a
                 href={user.html_url}
@@ -159,14 +160,7 @@ export default function GithubPage() {
           reposData?.items.map((repo) => (
             <div
               key={repo.id}
-              className="
-                rounded-lg
-                bg-white dark:bg-zinc-900
-                p-4
-                shadow-sm
-                transition
-                hover:shadow-md
-              "
+              className="rounded-lg bg-white p-4 shadow-sm transition hover:shadow-md dark:bg-zinc-900"
             >
               <a
                 href={repo.html_url}
@@ -176,43 +170,24 @@ export default function GithubPage() {
               >
                 {repo.name}
               </a>
-              <p className="mt-1 text-sm text-slate-500">
-                ⭐ {repo.stargazers_count}
-              </p>
+              <p className="mt-1 text-sm text-slate-500">Star: {repo.stargazers_count}</p>
             </div>
           ))}
       </div>
 
-      {/* ===== Pagination ===== */}
       {showResults && (usersData || reposData) && (
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <button
             disabled={page === 1}
-            onClick={() => setPage((p) => p - 1)}
-            className="
-              rounded-md
-              border
-              px-3 py-1.5
-              text-sm
-              disabled:opacity-50
-            "
+            onClick={goToPreviousPage}
+            className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
           >
             Prev
           </button>
 
-          <span className="text-sm text-slate-500">
-            Page {page}
-          </span>
+          <span className="text-sm text-slate-500">Page {page}</span>
 
-          <button
-            onClick={() => setPage((p) => p + 1)}
-            className="
-              rounded-md
-              border
-              px-3 py-1.5
-              text-sm
-            "
-          >
+          <button onClick={goToNextPage} className="rounded-md border px-3 py-1.5 text-sm">
             Next
           </button>
         </div>

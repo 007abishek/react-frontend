@@ -4,18 +4,18 @@ import FeatureCard from "../components/FeatureCard";
 export default function Home() {
   return (
     <AppLayout>
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h1>
-          <p className="mt-1 text-slate-500">Quick access to your features</p>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight ">Dashboard</h1>
+          <p className="mt-1 text-sm sm:text-base text-slate-500">Quick access to your features</p>
         </div>
 
         <button
           className="
             w-full sm:w-auto
-            rounded-md
+            rounded-lg sm:rounded-xl
             bg-red-500
-            px-4 py-2
+            px-4 py-2 sm:px-5 sm:py-2.5
             text-sm font-medium
             text-white
             transition
@@ -29,7 +29,7 @@ export default function Home() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4  sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <FeatureCard
           icon="📋"
           title="Todos"

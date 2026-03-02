@@ -4,14 +4,18 @@ import { useAppDispatch } from "../../app/hooks";
 import ProductDetailSkeleton from "./components/ProductDetailSkeleton";
 import { addToCart } from "./cartSlice";
 import { useGetProductByIdQuery } from "./productApi";
+import { productIdParamSchema } from "./schemas/routeSchemas";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  const productId = Number(id);
-  const { data: product, isLoading } = useGetProductByIdQuery(productId);
+  const parsedProductId = productIdParamSchema.safeParse(id);
+  const productId = parsedProductId.success ? parsedProductId.data : 0;
+  const { data: product, isLoading } = useGetProductByIdQuery(productId, {
+    skip: !parsedProductId.success,
+  });
 
   const [quantity, setQuantity] = useState(1);
   const [addedToCart, setAddedToCart] = useState(false);
@@ -56,11 +60,15 @@ export default function ProductDetailPage() {
   }
 
   if (!product) {
-    return <div className="flex min-h-screen items-center justify-center text-white">Product not found</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center text-white">
+        {parsedProductId.success ? "Product not found" : "Invalid product id"}
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 px-4 py-6 sm:py-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 px-4 py-4 sm:py-6 lg:py-8">
       <div className="mx-auto mb-6 max-w-7xl">
         <button onClick={() => navigate("/products")} className="text-blue-400 transition hover:text-blue-300">
           {"<- Back to Products"}
@@ -68,9 +76,9 @@ export default function ProductDetailPage() {
       </div>
 
       <div className="mx-auto max-w-7xl rounded-2xl border border-slate-700 bg-slate-800/50 p-4 shadow-2xl backdrop-blur-lg sm:p-8">
-        <div className="grid gap-8 md:grid-cols-2 md:gap-12">
-          <div className="rounded-xl bg-white p-4 sm:p-8">
-            <img src={product.thumbnail} alt={product.title} className="h-64 w-full object-contain sm:h-80 md:h-96" />
+        <div className="grid gap-6 sm:gap-8 md:grid-cols-2 md:gap-12">
+          <div className="rounded-xl bg-white p-4 sm:p-6 lg:p-8">
+            <img src={product.thumbnail} alt={product.title} className="h-52 w-full object-contain sm:h-64 md:h-80 lg:h-96" />
           </div>
 
           <div className="text-white">
@@ -78,9 +86,9 @@ export default function ProductDetailPage() {
               {product.category}
             </span>
 
-            <h1 className="mb-4 text-2xl font-bold sm:text-3xl">{product.title}</h1>
+            <h1 className="mb-4 text-xl font-bold sm:text-2xl lg:text-3xl">{product.title}</h1>
 
-            <div className="mb-3 text-3xl font-bold text-blue-400 sm:text-4xl">&#8377; {product.price}</div>
+            <div className="mb-3 text-2xl font-bold text-blue-400 sm:text-3xl lg:text-4xl">&#8377; {product.price}</div>
             {isOutOfStock && <p className="mb-6 text-sm font-semibold text-red-400">Out of stock</p>}
             {isLowStock && <p className="mb-6 text-sm font-semibold text-amber-300">Only {stock} left</p>}
 
@@ -90,7 +98,7 @@ export default function ProductDetailPage() {
                 <button
                   onClick={decrementQuantity}
                   disabled={isOutOfStock}
-                  className="h-10 w-10 rounded-lg border border-slate-600 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-9 w-9 sm:h-10 sm:w-h10 rounded-lg border border-slate-600 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   -
                 </button>
@@ -109,7 +117,7 @@ export default function ProductDetailPage() {
               <button
                 onClick={handleAddToCart}
                 disabled={isOutOfStock}
-                className="flex-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 py-3 font-semibold transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-600"
+                className="flex-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 py-2.5 sm:py-3 font-semibold transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-600"
               >
                 {isOutOfStock ? "Out of Stock" : addedToCart ? "Added to Cart" : "Add to Cart"}
               </button>
@@ -125,7 +133,7 @@ export default function ProductDetailPage() {
 
             <div className="border-t border-slate-700 pt-6">
               <h2 className="mb-3 text-xl font-bold">Product Description</h2>
-              <p className="leading-relaxed text-gray-300">{product.description}</p>
+              <p className="leading-relaxed text-sm sm:text-base text-gray-300">{product.description}</p>
             </div>
           </div>
         </div>

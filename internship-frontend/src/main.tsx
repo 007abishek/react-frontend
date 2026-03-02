@@ -1,25 +1,25 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { ApolloProvider } from "@apollo/client";
 import * as Sentry from "@sentry/react";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 
-import { store } from "./app/store";
-import { startAuthListener } from "./features/auth/authListener";
-import { ThemeProvider } from "./context/ThemeContext";
-import { apolloClient } from "./utils/apolloClient";
-import App from "./App";
+import App from "@/App";
+import { store } from "@/app/store";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { startAuthListener } from "@/features/auth/authListener";
+import { apolloClient } from "@/utils/apolloClient";
 
-import "./index.css";
+import "@/index.css";
 
 startAuthListener(store.dispatch);
 
-const sentryEnabled =
-  import.meta.env.VITE_SENTRY_ENABLED === "true" &&
-  Boolean(import.meta.env.VITE_SENTRY_DSN);
+// const sentryEnabled =
+//   import.meta.env.VITE_SENTRY_ENABLED === "true" &&
+//   Boolean(import.meta.env.VITE_SENTRY_DSN);
+const sentryEnabled = false;
 
 if (sentryEnabled) {
   Sentry.init({
@@ -39,13 +39,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ApolloProvider client={apolloClient}>
       <Provider store={store}>
         <ThemeProvider>
-          <BrowserRouter>
-            <Elements stripe={stripePromise}>
-              <Sentry.ErrorBoundary fallback={<p>Something went wrong.</p>}>
-                <App />
-              </Sentry.ErrorBoundary>
-            </Elements>
-          </BrowserRouter>
+          <Elements stripe={stripePromise}>
+            <Sentry.ErrorBoundary fallback={<p>Something went wrong.</p>}>
+              <App />
+            </Sentry.ErrorBoundary>
+          </Elements>
         </ThemeProvider>
       </Provider>
     </ApolloProvider>

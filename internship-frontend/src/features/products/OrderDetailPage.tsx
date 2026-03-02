@@ -8,6 +8,7 @@ import {
   type ShippingAddress,
 } from "./hasuraCommerce";
 import { useHasuraSubscription } from "../../hooks/useHasuraSubscription";
+import { orderIdParamSchema } from "./schemas/routeSchemas";
 
 type OrderDetailPayload = {
   order: OrderSummary | null;
@@ -73,19 +74,38 @@ function shouldShowExpectedDelivery(status: string): boolean {
 export default function OrderDetailPage() {
   const { orderId } = useParams();
   const navigate = useNavigate();
+  const parsedOrderId = orderIdParamSchema.safeParse(orderId);
+  const validOrderId = parsedOrderId.success ? parsedOrderId.data : null;
 
   const subscribe = useCallback(
     (
       onData: (payload: OrderDetailPayload) => void,
       onError: (err: Error) => void
     ) => {
-      if (!orderId) return Promise.reject(new Error("No order ID"));
-      return subscribeOrderByExternalId(orderId, onData, onError);
+      if (!validOrderId) return Promise.reject(new Error("No order ID"));
+      return subscribeOrderByExternalId(validOrderId, onData, onError);
     },
-    [orderId]
+    [validOrderId]
   );
 
   const { data: detail, loading, error, status } = useHasuraSubscription<OrderDetailPayload>(subscribe);
+
+  if (!parsedOrderId.success) {
+    return (
+      <AppLayout>
+        <div className="mx-auto max-w-4xl p-6">
+          <p className="mb-4 text-sm text-red-300">Invalid order id.</p>
+          <button
+            type="button"
+            onClick={() => navigate("/orders")}
+            className="text-blue-400 hover:underline"
+          >
+            Back to Orders
+          </button>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (loading) {
     return (

@@ -5,8 +5,8 @@ import { Provider } from "react-redux";
 import { BrowserRouter } from "react-router-dom";
 import type { Preview } from "@storybook/react";
 
-import { store } from "../src/app/store";
-import { ThemeProvider } from "../src/context/ThemeContext";
+import { store } from "@/app/store";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 const preview: Preview = {
   decorators: [

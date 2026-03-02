@@ -8,6 +8,7 @@ import ProductGridSkeleton from "./components/ProductGridSkeleton";
 import ConfigRenderer from "./components/ConfigRenderer";
 import { useGetProductsQuery } from "./productApi";
 import { productsPageConfig } from "./config/productsPageConfig";
+import { productSearchQuerySchema } from "./schemas/productSearchSchemas";
 import type { Product } from "./types";
 
 export default function ProductsPage() {
@@ -20,6 +21,7 @@ export default function ProductsPage() {
 
   const [showPrompt, setShowPrompt] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchError, setSearchError] = useState("");
   const [addedMessage, setAddedMessage] = useState("");
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -123,7 +125,16 @@ export default function ProductsPage() {
             id="products-search"
             type="search"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(event) => {
+              const validation = productSearchQuerySchema.safeParse(event.target.value);
+              if (!validation.success) {
+                setSearchError(validation.error.issues[0]?.message ?? "Invalid search query");
+                return;
+              }
+
+              setSearchError("");
+              setSearchQuery(event.target.value);
+            }}
             placeholder="Search by name, category, or description..."
             className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-zinc-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-900"
           />
@@ -138,6 +149,7 @@ export default function ProductsPage() {
             </button>
           )}
         </div>
+        {searchError ? <p className="mt-2 text-xs text-rose-500">{searchError}</p> : null}
       </div>
 
       {productsPageConfig.sections

@@ -78,8 +78,16 @@ export const startAuthListener = (dispatch: AppDispatch) => {
           setHasuraToken(loginData.hasuraToken);
           clearPaymentStatusCache();
         } else {
+          if (payload.errors?.length) {
+            console.error("authLogin GraphQL errors:", payload.errors);
+          } else {
+            console.error("authLogin returned no token/hasuraToken:", payload);
+          }
           clearHasuraToken();
         }
+      } else {
+        const bodyText = await res.text();
+        console.error("authLogin HTTP error:", res.status, bodyText);
       }
     } catch (err) {
       console.warn("Backend auth exchange failed:", err);

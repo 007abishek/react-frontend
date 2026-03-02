@@ -8,6 +8,13 @@ import {
   createOrderViaAction,
   createStripePaymentIntentViaAction,
 } from "./hasuraCommerce";
+import type { CheckoutAddress } from "./schemas/checkoutSchemas";
+import {
+  checkoutAddressSchema,
+  checkoutItemsSchema,
+  checkoutPaymentMethodSchema,
+  checkoutTotalSchema,
+} from "./schemas/checkoutSchemas";
 import StripePaymentForm from "./StripePaymentForm";
 
 const stripePromise = loadStripe(
@@ -89,6 +96,10 @@ function getErrorMessage(err: unknown): string {
   return "Failed to place order. Please try again.";
 }
 
+function getFirstValidationIssue(error: { issues?: Array<{ message?: string }> }): string {
+  return error.issues?.[0]?.message ?? "Please check your input and try again.";
+}
+
 function buildCheckoutSignature(params: {
   items: Array<{ id: number; quantity: number; price: number }>;
   address: {
@@ -119,10 +130,12 @@ function buildCheckoutSignature(params: {
 }
 
 function generateCheckoutAttemptId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `ORD-${crypto.randomUUID()}`;
-  }
-  return `ORD-${Date.now()}`;
+  // Keep order IDs human-friendly for UI and Temporal workflow IDs.
+  const now = Date.now();
+  const suffix = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0");
+  return `ORD-${now}${suffix}`;
 }
 
 export default function CheckoutPage() {
@@ -143,7 +156,7 @@ export default function CheckoutPage() {
   const [createdOrderSignature, setCreatedOrderSignature] = useState("");
 
   // Address State
-  const [address, setAddress] = useState({
+  const [address, setAddress] = useState<CheckoutAddress>({
     fullName: "",
     phone: "",
     email: "",
@@ -246,25 +259,82 @@ export default function CheckoutPage() {
 
   const handleAddressSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const validation = checkoutAddressSchema.safeParse(address);
+    if (!validation.success) {
+      setError(getFirstValidationIssue(validation.error));
+      return;
+    }
+
+    setAddress(validation.data);
     setError("");
     setStep("payment");
   };
 
   const handlePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const addressValidation = checkoutAddressSchema.safeParse(address);
+    if (!addressValidation.success) {
+      setError(getFirstValidationIssue(addressValidation.error));
+      setStep("address");
+      return;
+    }
+
+    const paymentValidation = checkoutPaymentMethodSchema.safeParse(paymentMethod);
+    if (!paymentValidation.success) {
+      setError(getFirstValidationIssue(paymentValidation.error));
+      return;
+    }
+
+    setAddress(addressValidation.data);
     setError("");
     setStep("review");
   };
 
   const handlePlaceOrder = async () => {
+    const itemsForValidation = cartItems.map((item) => ({
+      id: item.id,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+    const itemsValidation = checkoutItemsSchema.safeParse(itemsForValidation);
+    if (!itemsValidation.success) {
+      setError(getFirstValidationIssue(itemsValidation.error));
+      return;
+    }
+
+    const addressValidation = checkoutAddressSchema.safeParse(address);
+    if (!addressValidation.success) {
+      setError(getFirstValidationIssue(addressValidation.error));
+      setStep("address");
+      return;
+    }
+
+    const paymentValidation = checkoutPaymentMethodSchema.safeParse(paymentMethod);
+    if (!paymentValidation.success) {
+      setError(getFirstValidationIssue(paymentValidation.error));
+      setStep("payment");
+      return;
+    }
+
+    const total = calculateTotal();
+    const totalValidation = checkoutTotalSchema.safeParse(total);
+    if (!totalValidation.success) {
+      setError(getFirstValidationIssue(totalValidation.error));
+      return;
+    }
+
     setIsPlacing(true);
     setError("");
 
+    const safeAddress = addressValidation.data;
+    const safePaymentMethod = paymentValidation.data;
+    const safeTotal = totalValidation.data;
+
     const currentSignature = buildCheckoutSignature({
-      items: cartItems.map((item) => ({ id: item.id, quantity: item.quantity, price: item.price })),
-      address,
-      paymentMethod,
-      total: calculateTotal(),
+      items: itemsValidation.data,
+      address: safeAddress,
+      paymentMethod: safePaymentMethod,
+      total: safeTotal,
     });
     const canReuseExistingOrder =
       Boolean(orderId) &&
@@ -274,9 +344,9 @@ export default function CheckoutPage() {
     const stableOrderId = canReuseExistingOrder ? orderId : generateCheckoutAttemptId();
     const orderData = {
       items: cartItems,
-      address,
-      paymentMethod,
-      total: calculateTotal(),
+      address: safeAddress,
+      paymentMethod: safePaymentMethod,
+      total: safeTotal,
       orderId: stableOrderId,
       orderDate: new Date().toISOString(),
     };
@@ -299,7 +369,7 @@ export default function CheckoutPage() {
       }
 
       // Step 2: Handle Payment Based on Method
-      if (paymentMethod === "cod") {
+      if (safePaymentMethod === "cod") {
         dispatch(clearCart());
         navigate("/order-success", {
           state: {
@@ -309,7 +379,7 @@ export default function CheckoutPage() {
             },
           },
         });
-      } else if (paymentMethod === "card") {
+      } else if (safePaymentMethod === "card") {
         if (!hasStripeKey) {
           setError("Stripe publishable key is missing. Set VITE_STRIPE_PUBLISHABLE_KEY in frontend .env.");
           setIsPlacing(false);
@@ -318,13 +388,13 @@ export default function CheckoutPage() {
 
         const paymentResult = await createStripePaymentIntentViaAction({
           orderId: createdOrderId,
-          amount: calculateTotal(),
+          amount: safeTotal,
           currency: "inr",
         });
         setClientSecret(paymentResult.clientSecret);
         setIsPlacing(false);
         setStep("stripe");
-      } else if (paymentMethod === "upi") {
+      } else if (safePaymentMethod === "upi") {
         setError("UPI payment coming soon. Please use Card or COD.");
         setIsPlacing(false);
       }
@@ -364,7 +434,7 @@ export default function CheckoutPage() {
       <div className="max-w-6xl mx-auto">
         {/* Progress Indicator */}
         <div className="mb-8">
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
             <div className="flex items-center">
               <div
                 className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold sm:h-10 sm:w-10 ${
@@ -384,7 +454,7 @@ export default function CheckoutPage() {
               </span>
             </div>
 
-            <div className="hidden h-1 w-10 bg-slate-700 sm:block sm:w-16"></div>
+            <div className="hidden sm:block h-1 w-10 lg:w-16 bg-slate-700  sm:w-16"></div>
 
             <div className="flex items-center">
               <div
@@ -477,9 +547,9 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1  lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Left Side - Forms */}
-          <div className="lg:col-span-2">
+          <div className="order-1 lg:order-2 lg:col-span-1">
             {/* Address Form */}
             {step === "address" && (
               <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6">
@@ -487,7 +557,7 @@ export default function CheckoutPage() {
                   Shipping Address
                 </h2>
                 <form onSubmit={handleAddressSubmit} className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <input
                       type="text"
                       placeholder="Full Name"
@@ -542,7 +612,7 @@ export default function CheckoutPage() {
                     className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
 
-                  <div className="grid md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <input
                       type="text"
                       placeholder="City"
@@ -610,7 +680,7 @@ export default function CheckoutPage() {
                 <form onSubmit={handlePaymentSubmit} className="space-y-6">
                   {/* Payment Options */}
                   <div className="space-y-3">
-                    <label className="flex items-center gap-3 p-4 bg-slate-700 rounded-lg cursor-pointer hover:bg-slate-600 transition">
+                    <label className="flex items-center gap-3 p-3 sm:p-4 bg-slate-700 rounded-lg text-sm sm:text-base cursor-pointer hover:bg-slate-600 transition">
                       <input
                         type="radio"
                         name="payment"
@@ -852,7 +922,7 @@ export default function CheckoutPage() {
 
           {/* Right Side - Order Summary */}
           <div className="lg:col-span-1">
-            <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6 lg:sticky lg:top-4">
+            <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6 lg:sticky lg:top-6">
               <h3 className="text-xl font-bold text-white mb-4">
                 Order Summary
               </h3>
@@ -863,7 +933,7 @@ export default function CheckoutPage() {
                     <img
                       src={item.images?.[0] || item.thumbnail}
                       alt={item.title}
-                      className="w-16 h-16 object-contain bg-white rounded"
+                      className="w-14 h-14 sm:w-16 sm:h-16 object-contain bg-white rounded"
                     />
                     <div className="flex-1">
                       <p className="text-white text-sm line-clamp-2">
@@ -887,7 +957,7 @@ export default function CheckoutPage() {
                   <span>Shipping</span>
                   <span className="text-green-400">Free</span>
                 </div>
-                <div className="flex justify-between text-xl font-bold text-white pt-2 border-t border-slate-700">
+                <div className="flex justify-between text-lg sm:text-xl font-bold text-white pt-2 border-t border-slate-700">
                   <span>Total</span>
                   <span className="text-blue-400">₹{calculateTotal().toFixed(2)}</span>
                 </div>

@@ -39,20 +39,52 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
   const provider = providerMap[providerId] || "password";
   const isGuest = providerId === "anonymous";
 
-  const users = await db<UserRow>("users")
-    .insert({
-      firebase_uid: decoded.uid,
-      email: decoded.email ?? null,
-      provider,
-      is_guest: isGuest,
-    })
-    .onConflict("firebase_uid")
-    .merge({
-      email: decoded.email ?? null,
-    })
-    .returning("*");
+  // Resolve existing user by Firebase UID first, then by email to avoid
+  // unique-email collisions when provider accounts are linked later.
+  const existingByUid = await db<UserRow>("users")
+    .where({ firebase_uid: decoded.uid })
+    .first();
 
-  const user = users[0];
+  const normalizedEmail = decoded.email ?? null;
+  const existingByEmail =
+    !existingByUid && normalizedEmail
+      ? await db<UserRow>("users").where({ email: normalizedEmail }).first()
+      : null;
+
+  let user: UserRow;
+
+  if (existingByUid) {
+    const updated = await db<UserRow>("users")
+      .where({ id: existingByUid.id })
+      .update({
+        email: normalizedEmail,
+        provider,
+        is_guest: isGuest,
+      })
+      .returning("*");
+    user = updated[0];
+  } else if (existingByEmail) {
+    const updated = await db<UserRow>("users")
+      .where({ id: existingByEmail.id })
+      .update({
+        firebase_uid: decoded.uid,
+        email: normalizedEmail,
+        provider,
+        is_guest: isGuest,
+      })
+      .returning("*");
+    user = updated[0];
+  } else {
+    const inserted = await db<UserRow>("users")
+      .insert({
+        firebase_uid: decoded.uid,
+        email: normalizedEmail,
+        provider,
+        is_guest: isGuest,
+      })
+      .returning("*");
+    user = inserted[0];
+  }
   const token = jwt.sign(
     {
       userId: user.id,

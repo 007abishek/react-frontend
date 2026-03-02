@@ -77,11 +77,26 @@ export default function OrderSuccessPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4 py-8 sm:py-12">
-      <div className="max-w-2xl w-full">
+    <div className="
+  min-h-screen
+  bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900
+  flex items-start sm:items-center
+  justify-center
+  px-3 sm:px-4
+  py-6 sm:py-10
+">
+      <div className="w-full max-w-2xl">
         {/* Success Animation */}
         <div className="text-center mb-8">
-          <div className="mb-6 inline-flex h-20 w-20 items-center justify-center rounded-full bg-green-600 animate-bounce sm:h-24 sm:w-24">
+          <div className="
+  mb-5 sm:mb-6
+  inline-flex
+  h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24
+  items-center justify-center
+  rounded-full
+  bg-green-600
+  animate-bounce
+">
             <svg
               className="h-10 w-10 text-white sm:h-12 sm:w-12"
               fill="none"
@@ -96,7 +111,7 @@ export default function OrderSuccessPage() {
               />
             </svg>
           </div>
-          <h1 className="mb-2 text-3xl font-bold text-white sm:text-4xl">
+          <h1 className="mb-2 text-2xl sm:text-3xl lg:text-4xl font-bold text-white">
             Order Placed Successfully!
           </h1>
           <p className="text-base text-gray-400 sm:text-lg">
@@ -105,7 +120,12 @@ export default function OrderSuccessPage() {
         </div>
 
         {/* Order Details Card */}
-        <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 shadow-2xl backdrop-blur-lg sm:p-8">
+        <div className=" rounded-2xl
+  border border-slate-700
+  bg-slate-800/50
+  p-4 sm:p-6 lg:p-8
+  shadow-2xl
+  backdrop-blur-lg">
           {/* Order ID and Date */}
           <div className="border-b border-slate-700 pb-6 mb-6">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -181,7 +201,7 @@ export default function OrderSuccessPage() {
                   <img
                     src={item.thumbnail || item.image}
                     alt={item.title}
-                    className="w-16 h-16 object-contain bg-white rounded"
+                    className="w-14 h-14 sm:w-16 sm:h-16 object-contain bg-white rounded"
                   />
                   <div className="flex-1">
                     <p className="text-white text-sm font-medium line-clamp-2">
@@ -211,7 +231,7 @@ export default function OrderSuccessPage() {
                 <span>Delivery Charges</span>
                 <span className="text-green-400">Free</span>
               </div>
-              <div className="flex justify-between text-xl font-bold text-white pt-2 border-t border-slate-700">
+              <div className="flex justify-between text-lg sm:text-xl font-bold text-white pt-2 border-t border-slate-700">
                 <span>Total Paid</span>
                 <span className="text-blue-400">₹{safeTotal.toFixed(2)}</span>
               </div>
@@ -229,7 +249,7 @@ export default function OrderSuccessPage() {
           </div>
 
           {/* Estimated Delivery */}
-          <div className="bg-blue-600/10 border border-blue-500/30 rounded-lg p-4 mb-6">
+          <div className="bg-blue-600/10 border border-blue-500/30 rounded-lg p-3 mb-5 sm:mb-6 ">
             <div className="flex items-center gap-3">
               <svg
                 className="w-6 h-6 text-blue-400"
@@ -258,7 +278,7 @@ export default function OrderSuccessPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4 mt-2">
             <button
               onClick={() => navigate("/products")}
               className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 rounded-lg transition"

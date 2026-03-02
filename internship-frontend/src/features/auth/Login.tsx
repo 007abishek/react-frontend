@@ -1,67 +1,91 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  fetchSignInMethodsForEmail,
+  getRedirectResult,
+  GithubAuthProvider,
+  linkWithCredential,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult,
-  signInAnonymously,
-  fetchSignInMethodsForEmail,
   signOut,
 } from "firebase/auth";
-import {
-  auth,
-  googleProvider,
-  githubProvider,
-} from "../../firebase/config";
-import { useNavigate, Link } from "react-router-dom";
-import { useAppDispatch, useAppSelector } from "../../app/hooks";
-import { loginSuccess } from "./authSlice";
+import type { FirebaseError } from "firebase/app";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
-/* 🔑 Provider type (matches authSlice exactly) */
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { auth, githubProvider, googleProvider } from "@/firebase/config";
+import { loginSuccess } from "@/features/auth/authSlice";
+import AuthCard from "@/features/auth/components/AuthCard";
+import AuthShell from "@/features/auth/components/AuthShell";
+import { loginFormSchema } from "@/features/auth/schemas/authSchemas";
+
 type AuthProvider = "password" | "google" | "github" | "guest";
+
+type PendingGithubLinkData = {
+  accessToken: string;
+  email: string;
+};
+
+const PENDING_GITHUB_LINK_KEY = "pendingGithubLink";
+
+function readPendingGithubLink(): PendingGithubLinkData | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_GITHUB_LINK_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PendingGithubLinkData>;
+    if (typeof parsed.accessToken !== "string" || typeof parsed.email !== "string") {
+      return null;
+    }
+    return {
+      accessToken: parsed.accessToken,
+      email: parsed.email,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePendingGithubLink(value: PendingGithubLinkData): void {
+  sessionStorage.setItem(PENDING_GITHUB_LINK_KEY, JSON.stringify(value));
+}
+
+function clearPendingGithubLink(): void {
+  sessionStorage.removeItem(PENDING_GITHUB_LINK_KEY);
+}
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pendingLink, setPendingLink] = useState<PendingGithubLinkData | null>(
+    () => readPendingGithubLink()
+  );
 
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, loading: authLoading } = useAppSelector((state) => state.auth);
+  const redirectPath =
+    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/";
 
   const isMobileBrowser = /Mobi|Android|iPhone|iPad|iPod/i.test(
     typeof navigator !== "undefined" ? navigator.userAgent : ""
   );
 
-  /* ---------------- VALIDATION ---------------- */
+  const shouldShowLinkButton = useMemo(() => Boolean(pendingLink?.accessToken), [pendingLink]);
 
   const validate = () => {
-    if (!email.trim()) {
-      setError("Email is required");
-      return false;
-    }
-
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setError("Enter a valid email address");
-      return false;
-    }
-
-    if (!password) {
-      setError("Password is required");
-      return false;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+    const validation = loginFormSchema.safeParse({ email, password });
+    if (!validation.success) {
+      setError(validation.error.issues[0]?.message ?? "Please check your inputs");
       return false;
     }
 
     setError(null);
     return true;
   };
-
-  /* ---------------- FIREBASE ERROR MAPPING ---------------- */
 
   const getAuthErrorMessage = (code: string) => {
     switch (code) {
@@ -91,9 +115,26 @@ export default function Login() {
     }
   };
 
-  /* ---------------- SUCCESS HANDLER ---------------- */
+  const getEmailFromCustomData = (customData: unknown): string | null => {
+    if (!customData || typeof customData !== "object") {
+      return null;
+    }
 
-  const handleSuccess = (user: any, provider: AuthProvider) => {
+    const foundEmail = (customData as { email?: unknown }).email;
+    return typeof foundEmail === "string" ? foundEmail : null;
+  };
+
+  const resolveUserProvider = (providerId: string): AuthProvider => {
+    if (providerId === "google.com") return "google";
+    if (providerId === "github.com") return "github";
+    if (providerId === "password") return "password";
+    return "google";
+  };
+
+  const handleSuccess = (
+    user: { uid: string; email: string | null },
+    provider: AuthProvider
+  ) => {
     dispatch(
       loginSuccess({
         uid: user.uid,
@@ -102,14 +143,55 @@ export default function Login() {
         isGuest: provider === "guest",
       })
     );
-    navigate("/");
+  };
+
+  const completeLogin = (
+    user: { uid: string; email: string | null },
+    provider: AuthProvider
+  ) => {
+    handleSuccess(user, provider);
+    navigate(redirectPath, { replace: true });
+  };
+
+  const linkPendingGithubProvider = async (user: { email: string | null }) => {
+    const data = pendingLink ?? readPendingGithubLink();
+    if (!data) return;
+
+    const normalizedUserEmail = String(user.email ?? "").trim().toLowerCase();
+    const normalizedPendingEmail = data.email.trim().toLowerCase();
+
+    if (normalizedUserEmail && normalizedPendingEmail && normalizedUserEmail !== normalizedPendingEmail) {
+      setError("Linked account email mismatch. Please try GitHub login again.");
+      return;
+    }
+
+    try {
+      const credential = GithubAuthProvider.credential(data.accessToken);
+      await linkWithCredential(auth.currentUser!, credential);
+      clearPendingGithubLink();
+      setPendingLink(null);
+      setError(null);
+    } catch (err) {
+      const firebaseError = err as FirebaseError;
+      if (
+        firebaseError.code === "auth/provider-already-linked" ||
+        firebaseError.code === "auth/credential-already-in-use"
+      ) {
+        clearPendingGithubLink();
+        setPendingLink(null);
+        setError(null);
+        return;
+      }
+
+      setError("Google login succeeded, but GitHub linking failed. Please retry GitHub login.");
+    }
   };
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate("/", { replace: true });
+      navigate(redirectPath, { replace: true });
     }
-  }, [authLoading, isAuthenticated, navigate]);
+  }, [authLoading, isAuthenticated, navigate, redirectPath]);
 
   useEffect(() => {
     let mounted = true;
@@ -119,15 +201,17 @@ export default function Login() {
         const result = await getRedirectResult(auth);
         if (!mounted || !result?.user) return;
 
-        const providerId = result.providerId ?? "";
-        const provider: AuthProvider =
-          providerId === "github.com" ? "github" : "google";
-        handleSuccess(result.user, provider);
-      } catch (err: any) {
+        const provider = resolveUserProvider(result.providerId ?? "");
+        if (pendingLink || readPendingGithubLink()) {
+          await linkPendingGithubProvider(result.user);
+        }
+        completeLogin(result.user, provider);
+      } catch (err) {
         if (!mounted) return;
 
-        if (err?.code === "auth/account-exists-with-different-credential") {
-          const accountEmail = err.customData?.email;
+        const firebaseError = err as FirebaseError;
+        if (firebaseError.code === "auth/account-exists-with-different-credential") {
+          const accountEmail = getEmailFromCustomData(firebaseError.customData);
           if (!accountEmail) {
             setError("This email is already registered with another provider.");
             return;
@@ -135,9 +219,7 @@ export default function Login() {
 
           const methods = await fetchSignInMethodsForEmail(auth, accountEmail);
           if (methods.includes("github.com")) {
-            setError(
-              "This email is already registered using GitHub. Please login with GitHub."
-            );
+            setError("This email is already registered using GitHub. Please login with GitHub.");
             return;
           }
 
@@ -145,7 +227,7 @@ export default function Login() {
           return;
         }
 
-        setError(getOAuthErrorMessage(err?.code ?? ""));
+        setError(getOAuthErrorMessage(firebaseError.code ?? ""));
       }
     })();
 
@@ -154,32 +236,28 @@ export default function Login() {
     };
   }, []);
 
-  /* ---------------- LOGIN WITH EMAIL ---------------- */
-
   const loginEmail = async () => {
     if (!validate()) return;
 
     try {
       setLoading(true);
-      const res = await signInWithEmailAndPassword(auth, email, password);
+      const response = await signInWithEmailAndPassword(auth, email, password);
 
-      await res.user.reload();
-
-      if (!res.user.emailVerified) {
+      await response.user.reload();
+      if (!response.user.emailVerified) {
         await signOut(auth);
         setError("Please verify your email before logging in.");
         return;
       }
 
-      handleSuccess(res.user, "password");
-    } catch (err: any) {
-      setError(getAuthErrorMessage(err.code));
+      completeLogin(response.user, "password");
+    } catch (err) {
+      const firebaseError = err as FirebaseError;
+      setError(getAuthErrorMessage(firebaseError.code));
     } finally {
       setLoading(false);
     }
   };
-
-  /* ---------------- GOOGLE LOGIN ---------------- */
 
   const loginGoogle = async () => {
     try {
@@ -189,47 +267,64 @@ export default function Login() {
         return;
       }
 
-      const res = await signInWithPopup(auth, googleProvider);
-      handleSuccess(res.user, "google");
-    } catch (err: any) {
-      if (err.code === "auth/account-exists-with-different-credential") {
-        const email = err.customData?.email;
-        const methods = await fetchSignInMethodsForEmail(auth, email);
+      const response = await signInWithPopup(auth, googleProvider);
+      if (pendingLink || readPendingGithubLink()) {
+        await linkPendingGithubProvider(response.user);
+      }
+      completeLogin(response.user, "google");
+    } catch (err) {
+      const firebaseError = err as FirebaseError;
+      if (firebaseError.code === "auth/account-exists-with-different-credential") {
+        const accountEmail = getEmailFromCustomData(firebaseError.customData);
+        if (!accountEmail) {
+          setError("This email is already registered with another provider.");
+          return;
+        }
 
+        const methods = await fetchSignInMethodsForEmail(auth, accountEmail);
         if (methods.includes("github.com")) {
-          setError(
-            "This email is already registered using GitHub. Please login with GitHub."
-          );
+          setError("This email is already registered using GitHub. Please login with GitHub.");
         } else {
           setError("This email is already registered with another provider.");
         }
       } else {
-        setError(getOAuthErrorMessage(err.code));
+        setError(getOAuthErrorMessage(firebaseError.code));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  /* ---------------- GITHUB LOGIN ---------------- */
-
   const loginGithub = async () => {
     try {
       setLoading(true);
-      const res = await signInWithPopup(auth, githubProvider);
-      handleSuccess(res.user, "github");
-    } catch (err: any) {
-      if (err.code === "auth/account-exists-with-different-credential") {
-        const email = err.customData?.email;
-        const methods = await fetchSignInMethodsForEmail(auth, email);
+      const response = await signInWithPopup(auth, githubProvider);
+      completeLogin(response.user, "github");
+    } catch (err) {
+      const firebaseError = err as FirebaseError;
+      if (firebaseError.code === "auth/account-exists-with-different-credential") {
+        const accountEmail = getEmailFromCustomData(firebaseError.customData);
+        const pendingCredential = GithubAuthProvider.credentialFromError(firebaseError);
+
+        if (!accountEmail || !pendingCredential?.accessToken) {
+          setError("This email is already registered with another provider.");
+          return;
+        }
+
+        const methods = await fetchSignInMethodsForEmail(auth, accountEmail);
 
         if (methods.includes("google.com")) {
-          setError(
-            "This email is already registered using Google. Please login with Google."
-          );
-        } else {
-          setError("This email is already registered with another provider.");
+          const pendingData: PendingGithubLinkData = {
+            email: accountEmail,
+            accessToken: pendingCredential.accessToken,
+          };
+          writePendingGithubLink(pendingData);
+          setPendingLink(pendingData);
+          setError("This email already uses Google. Continue with Google to link GitHub.");
+          return;
         }
+
+        setError("This email is already registered with another provider.");
       } else {
         setError("GitHub login failed. Try again");
       }
@@ -238,13 +333,20 @@ export default function Login() {
     }
   };
 
-  /* ---------------- GUEST LOGIN ---------------- */
+  const continueWithGoogleForLinking = async () => {
+    if (!pendingLink && !readPendingGithubLink()) {
+      setError("No pending GitHub credential found. Please retry GitHub login.");
+      return;
+    }
+
+    await loginGoogle();
+  };
 
   const loginGuest = async () => {
     try {
       setLoading(true);
-      const res = await signInAnonymously(auth);
-      handleSuccess(res.user, "guest");
+      const response = await signInAnonymously(auth);
+      completeLogin(response.user, "guest");
     } catch {
       setError("Guest login failed");
     } finally {
@@ -252,140 +354,91 @@ export default function Login() {
     }
   };
 
-  /* ---------------- UI ---------------- */
-
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 flex items-center justify-center px-4">
-      {/* 🔮 Page Glow Background */}
-      <div className="absolute -top-40 -left-40 h-[420px] w-[420px] rounded-full bg-purple-500/30 blur-[140px]" />
-      <div className="absolute top-1/3 -right-40 h-[380px] w-[380px] rounded-full bg-blue-500/30 blur-[140px]" />
-      <div className="absolute bottom-0 left-1/4 h-[300px] w-[300px] rounded-full bg-pink-500/20 blur-[120px]" />
-
-      {/* 🧊 Card Wrapper */}
-      <div className="relative z-10 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-purple-500/10 to-pink-500/20 blur-2xl" />
-
-        <div className="relative z-10 rounded-2xl border border-white/20 bg-white/90 p-5 backdrop-blur-xl sm:p-8">
-          <h1 className="text-2xl font-semibold text-center text-slate-900 mb-6">
-            Welcome back
-          </h1>
-
-          {error && (
-            <p
-              role="alert"
-              className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200"
-            >
-              {error}
-            </p>
-          )}
-
-          <input
-            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 mb-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              setError(null);
-            }}
-          />
-
-          <input
-            type="password"
-            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 mb-4 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              setError(null);
-            }}
-          />
-
-          {/* ✅ Email Login Button */}
-          <button
-            onClick={loginEmail}
-            disabled={loading}
-            className="
-              w-full rounded-lg py-3 font-semibold text-white
-              bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600
-              hover:from-blue-700 hover:via-blue-600 hover:to-indigo-700
-              active:scale-[0.99]
-              transition-all duration-200
-              shadow-lg shadow-blue-500/30
-              ring-1 ring-blue-500/40
-              focus:outline-none focus:ring-2 focus:ring-blue-500
-              disabled:opacity-60 disabled:cursor-not-allowed
-              dark:shadow-blue-400/20
-              dark:ring-blue-400/40
-            "
-          >
-            {loading ? "Logging in..." : "Login with Email"}
-          </button>
-
-          <div className="my-6 flex items-center gap-3 text-sm text-slate-400">
-            <div className="h-px flex-1 bg-slate-200" />
-            OR
-            <div className="h-px flex-1 bg-slate-200" />
-          </div>
-
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-            {/* 🎨 Google Button - Purple to Pink Gradient */}
-            <button
-              onClick={loginGoogle}
-              disabled={loading}
-              className="
-                flex-1 rounded-lg py-2 font-semibold text-white
-                bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500
-                hover:from-indigo-700 hover:via-blue-700 hover:to-cyan-600
-                active:scale-[0.99]
-                transition-all duration-200
-                shadow-md shadow-blue-500/30
-                ring-1 ring-blue-500/40
-                focus:outline-none focus:ring-2 focus:ring-blue-500
-                disabled:opacity-60 disabled:cursor-not-allowed
-              "
-            >
-              Google
-            </button>
-
-            {/* 🎨 GitHub Button - Indigo to Cyan Gradient */}
-            <button
-              onClick={loginGithub}
-              disabled={loading}
-              className="
-                flex-1 rounded-lg py-2 font-semibold text-white
-                bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500
-                hover:from-indigo-700 hover:via-blue-700 hover:to-cyan-600
-                active:scale-[0.99]
-                transition-all duration-200
-                shadow-md shadow-blue-500/30
-                ring-1 ring-blue-500/40
-                focus:outline-none focus:ring-2 focus:ring-blue-500
-                disabled:opacity-60 disabled:cursor-not-allowed
-              "
-            >
-              GitHub
-            </button>
-          </div>
-
-          <button
-            onClick={loginGuest}
-            disabled={loading}
-            className="w-full text-sm text-slate-600 underline transition hover:text-slate-800 disabled:opacity-50 mb-4"
-          >
-            Continue as Guest
-          </button>
-
-          <p className="text-sm text-center text-slate-600">
-            Don't have an account?{" "}
-            <Link
-              to="/signup"
-              className="text-blue-600 font-medium hover:underline"
-            >
+    <AuthShell>
+      <AuthCard
+        title="Welcome back"
+        error={error}
+        footer={
+          <p className="mt-2 text-center text-sm text-slate-600">
+            Don&apos;t have an account?{" "}
+            <Link to="/signup" className="font-medium text-blue-600 hover:underline">
               Sign up
             </Link>
           </p>
+        }
+      >
+        <input
+          className="mb-3 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Email"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setError(null);
+          }}
+        />
+
+        <input
+          type="password"
+          className="mb-4 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Password"
+          value={password}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setError(null);
+          }}
+        />
+
+        <button
+          onClick={loginEmail}
+          disabled={loading}
+          className="w-full rounded-lg bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 py-3 font-semibold text-white shadow-lg shadow-blue-500/30 ring-1 ring-blue-500/40 transition-all duration-200 hover:from-blue-700 hover:via-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? "Logging in..." : "Login with Email"}
+        </button>
+
+        <div className="my-6 flex items-center gap-3 text-sm text-slate-400">
+          <div className="h-px flex-1 bg-slate-200" />
+          OR
+          <div className="h-px flex-1 bg-slate-200" />
         </div>
-      </div>
-    </div>
+
+        {shouldShowLinkButton ? (
+          <button
+            onClick={continueWithGoogleForLinking}
+            disabled={loading}
+            className="mb-3 w-full rounded-lg border border-emerald-500 bg-emerald-50 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Continue with Google to Link GitHub
+          </button>
+        ) : null}
+
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+          <button
+            onClick={loginGoogle}
+            disabled={loading}
+            className="flex-1 rounded-lg bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 py-2 font-semibold text-white shadow-md shadow-blue-500/30 ring-1 ring-blue-500/40 transition-all duration-200 hover:from-indigo-700 hover:via-blue-700 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Google
+          </button>
+
+          <button
+            onClick={loginGithub}
+            disabled={loading}
+            className="flex-1 rounded-lg bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 py-2 font-semibold text-white shadow-md shadow-blue-500/30 ring-1 ring-blue-500/40 transition-all duration-200 hover:from-indigo-700 hover:via-blue-700 hover:to-cyan-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            GitHub
+          </button>
+        </div>
+
+        <button
+          onClick={loginGuest}
+          disabled={loading}
+          className="mb-4 w-full text-sm text-slate-600 underline transition hover:text-slate-800 disabled:opacity-50"
+        >
+          Continue as Guest
+        </button>
+      </AuthCard>
+    </AuthShell>
   );
 }
