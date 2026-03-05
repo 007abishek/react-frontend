@@ -69,7 +69,7 @@ export type CheckoutAddressInput = {
 export type CheckoutOrderInput = {
   items: CartItem[];
   address: CheckoutAddressInput;
-  paymentMethod: "cod" | "card" | "upi";
+  paymentMethod: "cod" | "card";
   total: number;
   orderId?: string;
   orderDate?: string;

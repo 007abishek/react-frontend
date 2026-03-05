@@ -173,6 +173,14 @@ export default function StripePaymentForm({
         <PaymentElement
           options={{
             layout: "tabs",
+            fields: {
+              billingDetails: {
+                name: "never",
+                email: "never",
+                phone: "never",
+                address: "never",
+              },
+            },
           }}
         />
       </div>

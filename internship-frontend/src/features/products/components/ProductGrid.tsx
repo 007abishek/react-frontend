@@ -14,6 +14,14 @@ export default function ProductGrid({
   onProductClick,
   onQuickAdd,
 }: Props) {
+  const formatPrice = (value: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+
   const { filter } = section;
 
   const filteredProducts = products.filter((product) => {
@@ -58,7 +66,9 @@ export default function ProductGrid({
                 {product.title}
               </h3>
 
-              <p className="mt-2 font-semibold text-gray-900 dark:text-white">? {product.price}</p>
+              <p className="mt-2 font-semibold text-gray-900 dark:text-white">
+                {formatPrice(Number(product.price ?? 0))}
+              </p>
 
               {isOutOfStock && <p className="mt-2 text-sm font-semibold text-red-500">Out of stock</p>}
               {isLowStock && <p className="mt-2 text-sm font-semibold text-amber-500">Only {stock} left</p>}

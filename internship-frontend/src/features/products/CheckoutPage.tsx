@@ -112,7 +112,7 @@ function buildCheckoutSignature(params: {
     state: string;
     pincode: string;
   };
-  paymentMethod: "cod" | "card" | "upi";
+  paymentMethod: "cod" | "card";
   total: number;
 }): string {
   return JSON.stringify({
@@ -170,7 +170,7 @@ export default function CheckoutPage() {
   const [pincodeCities, setPincodeCities] = useState<string[]>([]);
 
   // Payment State
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "card" | "upi">("cod");
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "card">("cod");
 
   const cityOptions = useMemo(() => {
     const q = address.city.trim().toLowerCase();
@@ -394,9 +394,6 @@ export default function CheckoutPage() {
         setClientSecret(paymentResult.clientSecret);
         setIsPlacing(false);
         setStep("stripe");
-      } else if (safePaymentMethod === "upi") {
-        setError("UPI payment coming soon. Please use Card or COD.");
-        setIsPlacing(false);
       }
       
     } catch (err: unknown) {
@@ -604,7 +601,8 @@ export default function CheckoutPage() {
 
                   <input
                     type="text"
-                    placeholder="Address Line 2 (Optional)"
+                    placeholder="Address Line 2"
+                    required
                     value={address.addressLine2}
                     onChange={(e) =>
                       setAddress({ ...address, addressLine2: e.target.value })
@@ -713,23 +711,6 @@ export default function CheckoutPage() {
                       </div>
                     </label>
 
-                    <label className="flex items-center gap-3 p-4 bg-slate-700/50 rounded-lg cursor-not-allowed opacity-50">
-                      <input
-                        type="radio"
-                        name="payment"
-                        value="upi"
-                        disabled
-                        className="w-5 h-5"
-                      />
-                      <div className="flex-1">
-                        <span className="text-white font-semibold block">
-                          UPI Payment
-                        </span>
-                        <span className="text-gray-400 text-sm">
-                          Coming soon
-                        </span>
-                      </div>
-                    </label>
                   </div>
 
                   {paymentMethod === "card" && (
@@ -797,7 +778,6 @@ export default function CheckoutPage() {
                   <p className="text-gray-300 text-sm">
                     {paymentMethod === "cod" && "Cash on Delivery"}
                     {paymentMethod === "card" && "Credit/Debit Card (Stripe)"}
-                    {paymentMethod === "upi" && "UPI Payment"}
                   </p>
                   <button
                     onClick={() => setStep("payment")}
@@ -969,5 +949,3 @@ export default function CheckoutPage() {
     </div>
   );
 }
-
-
