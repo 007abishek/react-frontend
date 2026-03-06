@@ -3,7 +3,7 @@ import { apolloClient } from "./apolloClient";
 
 const HASURA_URL = import.meta.env.VITE_HASURA_URL || "http://localhost:8080/v1/graphql";
 
-export const HASURA_TOKEN_KEY = "hasura_jwt";
+export const HASURA_TOKEN_KEY = "jwt";
 
 type GraphQLError = {
   message: string;
@@ -17,64 +17,36 @@ type SubscriptionMessage<T> = {
   };
 };
 
-async function fetchHasuraToken(): Promise<string> {
-  const backendJwt = localStorage.getItem("jwt");
-  if (!backendJwt) {
-    throw new Error("Missing backend JWT. Please login again.");
-  }
-
-  const res = await fetch(HASURA_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      query: `
-        mutation IssueHasuraToken($backendJwt: String!) {
-          issueHasuraToken(backendJwt: $backendJwt) {
-            token
-          }
-        }
-      `,
-      variables: { backendJwt },
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to get Hasura token (${res.status})`);
-  }
-
-  const body = (await res.json()) as {
-    data?: { issueHasuraToken?: { token?: string } };
-    errors?: Array<{ message?: string }>;
-  };
-  const token = body.data?.issueHasuraToken?.token;
-  if (!token) {
-    const message = body.errors?.[0]?.message ?? "Hasura token missing in response";
-    throw new Error(message);
-  }
-
-  localStorage.setItem(HASURA_TOKEN_KEY, token);
-  return token;
-}
-
 export function setHasuraToken(token: string): void {
   if (!token) {
     throw new Error("Hasura token missing in response");
   }
   localStorage.setItem(HASURA_TOKEN_KEY, token);
+  localStorage.removeItem("hasura_jwt");
 }
 
 export async function getHasuraToken(forceRefresh = false): Promise<string> {
-  if (!forceRefresh) {
-    const existing = localStorage.getItem(HASURA_TOKEN_KEY);
-    if (existing) return existing;
+  const existing = localStorage.getItem(HASURA_TOKEN_KEY);
+  if (existing) return existing;
+
+  // Backward compatibility for older sessions where token was stored separately.
+  const legacyHasuraToken = localStorage.getItem("hasura_jwt");
+  if (legacyHasuraToken) {
+    localStorage.setItem(HASURA_TOKEN_KEY, legacyHasuraToken);
+    localStorage.removeItem("hasura_jwt");
+    return legacyHasuraToken;
   }
-  return fetchHasuraToken();
+
+  if (forceRefresh) {
+    throw new Error("Missing JWT. Please login again.");
+  }
+
+  throw new Error("Missing JWT. Please login again.");
 }
 
 export function clearHasuraToken(): void {
-  localStorage.removeItem(HASURA_TOKEN_KEY);
+  localStorage.removeItem("jwt");
+  localStorage.removeItem("hasura_jwt");
 }
 
 export async function hasuraRequest<T>(

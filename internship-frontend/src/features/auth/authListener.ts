@@ -52,7 +52,6 @@ export const startAuthListener = (dispatch: AppDispatch) => {
             mutation AuthLogin($firebaseIdToken: String!) {
               authLogin(firebaseIdToken: $firebaseIdToken) {
                 token
-                hasuraToken
                 user {
                   id
                   uid
@@ -69,19 +68,19 @@ export const startAuthListener = (dispatch: AppDispatch) => {
 
       if (res.ok) {
         const payload = (await res.json()) as {
-          data?: { authLogin?: { token?: string; hasuraToken?: string } };
+          data?: { authLogin?: { token?: string } };
           errors?: Array<{ message?: string }>;
         };
         const loginData = payload.data?.authLogin;
-        if (loginData?.token && loginData?.hasuraToken) {
+        if (loginData?.token) {
           localStorage.setItem("jwt", loginData.token);
-          setHasuraToken(loginData.hasuraToken);
+          setHasuraToken(loginData.token);
           clearPaymentStatusCache();
         } else {
           if (payload.errors?.length) {
             console.error("authLogin GraphQL errors:", payload.errors);
           } else {
-            console.error("authLogin returned no token/hasuraToken:", payload);
+            console.error("authLogin returned no token:", payload);
           }
           clearHasuraToken();
         }

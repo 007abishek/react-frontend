@@ -4,6 +4,9 @@ export type HasuraTokenInput = {
   userId: number;
   uid: string;
   isGuest: boolean;
+  email?: string | null;
+  provider?: string;
+  expiresIn?: jwt.SignOptions["expiresIn"];
 };
 
 export function signHasuraToken(input: HasuraTokenInput): string {
@@ -18,6 +21,11 @@ export function signHasuraToken(input: HasuraTokenInput): string {
   return jwt.sign(
     {
       sub: String(input.uid),
+      userId: Number(input.userId),
+      uid: String(input.uid),
+      email: input.email ?? null,
+      provider: input.provider ?? (input.isGuest ? "guest" : "password"),
+      isGuest: Boolean(input.isGuest),
       "https://hasura.io/jwt/claims": {
         "x-hasura-default-role": defaultRole,
         "x-hasura-allowed-roles": allowedRoles,
@@ -26,7 +34,6 @@ export function signHasuraToken(input: HasuraTokenInput): string {
       },
     },
     hasuraJwtSecret,
-    { expiresIn: "1h" }
+    { expiresIn: input.expiresIn ?? ("7d" as jwt.SignOptions["expiresIn"]) }
   );
 }
-

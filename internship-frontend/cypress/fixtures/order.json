@@ -1,0 +1,13 @@
+{
+  "data": {
+    "createOrder": {
+      "orderId": "ORD-123",
+      "orderDate": "2026-03-05",
+      "status": "success",
+      "orderStatus": "confirmed",
+      "paymentStatus": "not_required",
+      "paymentMethod": "cod",
+      "total": 999
+    }
+  }
+}

@@ -4,10 +4,11 @@
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "types": ["cypress", "node"],
+    "jsx": "react-jsx",
+    "types": ["cypress", "node", "vite/client"],
     "strict": true,
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts", "./**/*.tsx"]
 }

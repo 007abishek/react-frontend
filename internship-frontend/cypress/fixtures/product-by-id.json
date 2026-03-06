@@ -1,0 +1,15 @@
+{
+  "data": {
+    "products_by_pk": {
+      "id": 1,
+      "title": "Test Product",
+      "description": "Test product for Cypress checkout flow",
+      "price": 999,
+      "category": "test",
+      "thumbnail": "https://via.placeholder.com/150",
+      "images": [],
+      "rating": 4.5,
+      "stock": 10
+    }
+  }
+}

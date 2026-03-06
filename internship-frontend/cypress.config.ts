@@ -11,4 +11,12 @@ export default defineConfig({
       return config;
     },
   },
+  component: {
+    specPattern: "cypress/component/**/*.cy.{js,jsx,ts,tsx}",
+    supportFile: "cypress/support/component.ts",
+    devServer: {
+      framework: "react",
+      bundler: "vite",
+    },
+  },
 });

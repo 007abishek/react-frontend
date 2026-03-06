@@ -3,8 +3,12 @@ class ProductsPage {
     cy.visit("/products");
   }
 
-  addFirstProductToCart() {
-    cy.contains("button", "Add to Cart").first().click();
+  openFirstProduct() {
+    cy.get("h3").first().click();
+  }
+
+  addProductToCartFromDetail() {
+    cy.contains("button", "Add to Cart").click();
   }
 }
 

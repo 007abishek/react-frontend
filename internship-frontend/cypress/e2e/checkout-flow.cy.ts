@@ -7,13 +7,22 @@ import { mockGraphQL } from "../support/graphql"
 describe("Checkout Flow",()=>{
     beforeEach(()=>{
         mockGraphQL("GetProducts","products.json")
+        mockGraphQL("GetProductById","product-by-id.json")
         mockGraphQL("CreateOrder","order.json")
+
+        cy.visit("/login")
+        cy.contains("button", "Continue as Guest").click()
+        cy.window().then((win) => {
+            win.localStorage.setItem("jwt", "dummy-hasura-token")
+        })
     })
 
     it("User completes checkout using COD",()=>{
         productsPage.visit()
 
-        productsPage.addFirstProductToCart()
+        productsPage.openFirstProduct()
+
+        productsPage.addProductToCartFromDetail()
 
         cartPage.visit()
 

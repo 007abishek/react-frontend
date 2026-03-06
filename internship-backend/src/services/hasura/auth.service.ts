@@ -85,23 +85,15 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
       .returning("*");
     user = inserted[0];
   }
-  const token = jwt.sign(
-    {
-      userId: user.id,
-      uid: user.firebase_uid,
-      email: user.email,
-      provider: user.provider,
-      isGuest: user.is_guest,
-    },
-    process.env.JWT_SECRET as string,
-    { expiresIn: "7d" }
-  );
-
-  const hasuraToken = signHasuraToken({
+  const token = signHasuraToken({
     userId: user.id,
     uid: user.firebase_uid,
     isGuest: user.is_guest,
+    email: user.email,
+    provider: user.provider,
+    expiresIn: "7d",
   });
+  const hasuraToken = token;
 
   return {
     token,
@@ -117,21 +109,15 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
 }
 
 export function issueHasuraTokenFromBackendJwt(backendJwt: string): { token: string } {
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) {
-    throw new Error("JWT_SECRET is not configured");
+  const hasuraJwtSecret = process.env.HASURA_JWT_SECRET;
+  if (!hasuraJwtSecret) {
+    throw new Error("HASURA_JWT_SECRET is not configured");
   }
 
-  const decoded = jwt.verify(backendJwt, jwtSecret) as BackendJwtPayload;
+  const decoded = jwt.verify(backendJwt, hasuraJwtSecret) as BackendJwtPayload;
   if (!decoded?.userId || !decoded?.uid) {
-    throw new Error("Invalid backend JWT");
+    throw new Error("Invalid unified JWT");
   }
 
-  const token = signHasuraToken({
-    userId: Number(decoded.userId),
-    uid: String(decoded.uid),
-    isGuest: Boolean(decoded.isGuest),
-  });
-
-  return { token };
+  return { token: backendJwt };
 }
