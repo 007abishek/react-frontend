@@ -84,15 +84,23 @@ export async function createStripeIntentForOrder(input: {
   currency?: string;
 }): Promise<{ clientSecret: string | null; paymentIntentId: string; reused: boolean }> {
   const currency = String(input.currency ?? "inr").toLowerCase();
-  const amount = Number(input.amount);
+  const requestedAmount = Number(input.amount);
 
-  if (!input.orderId || !Number.isFinite(amount) || amount <= 0) {
+  if (!input.orderId || !Number.isFinite(requestedAmount) || requestedAmount <= 0) {
     throw new Error("orderId and amount required");
   }
 
   const order = await OrderModel.getByOrderId(input.orderId, input.userId);
   if (!order) {
     throw new Error("Order not found");
+  }
+
+  const expectedAmount = Number(order.total ?? 0);
+  if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) {
+    throw new Error("Order total is invalid");
+  }
+  if (Math.abs(expectedAmount - requestedAmount) > 0.0001) {
+    throw new Error("Amount mismatch for order");
   }
 
   const existingPayment = await PaymentModel.getByOrderId(order.id);
@@ -120,7 +128,7 @@ export async function createStripeIntentForOrder(input: {
 
   const paymentIntent = await stripe.paymentIntents.create(
     {
-      amount: Math.round(amount * 100),
+      amount: Math.round(expectedAmount * 100),
       currency,
       metadata: {
         orderId: order.order_id,
@@ -131,14 +139,14 @@ export async function createStripeIntentForOrder(input: {
       },
     },
     {
-      idempotencyKey: `order:${order.order_id}:amount:${Math.round(amount * 100)}:currency:${currency}`,
+      idempotencyKey: `order:${order.order_id}:amount:${Math.round(expectedAmount * 100)}:currency:${currency}`,
     }
   );
 
   await PaymentModel.create({
     orderId: order.id,
     userId: input.userId,
-    amount,
+    amount: expectedAmount,
     currency,
     stripePaymentIntentId: paymentIntent.id,
   });

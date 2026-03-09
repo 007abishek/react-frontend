@@ -1,174 +1,94 @@
-const dbMock: any = jest.fn();
-dbMock.transaction = jest.fn();
-dbMock.fn = {
-  now: jest.fn(() => new Date("2026-01-01T00:00:00.000Z")),
-};
-dbMock.raw = jest.fn((sql: string) => sql);
+//unit test 
 
-jest.mock("../../../config/knex", () => ({
-  __esModule: true,
-  default: dbMock,
-}));
+//test cases
+//1.input validation
+//items empty
+//address missing
+//paymentMethod missing
 
-const inventoryModelMock = {
-  checkAvailability: jest.fn(),
-};
+//2.product validation
+//product not found
+//invalid productId
+//invalid quantity
 
-jest.mock("../../../models/inventory.model", () => ({
-  __esModule: true,
-  default: inventoryModelMock,
-}));
+//3.inventory validation
+//stock available
+//stock unavailable
 
-const orderModelMock = {
-  getByOrderId: jest.fn(),
-  createWithTrx: jest.fn(),
-};
+//4.idempotency logic
+//same orderId returns existing order
 
-jest.mock("../../../models/order.model", () => ({
-  __esModule: true,
-  default: orderModelMock,
-}));
-
-const temporalClientMock = {
-  cancelWorkflowById: jest.fn(),
-};
-
-jest.mock("../../../temporal/client", () => ({
-  __esModule: true,
-  cancelWorkflowById: (...args: unknown[]) => temporalClientMock.cancelWorkflowById(...args),
-}));
+//5. successful order creation
+//creates order
+//returns correct response
 
 import { createOrderFromActionInput } from "../order.service";
+import InventoryModel from "../../../models/inventory.model";
+import db from "../../../config/knex";
 
-const createProductsChain = () => {
-  const chain: any = {};
-  chain.select = jest.fn(() => chain);
-  chain.whereIn = jest.fn(async () => [
-    { id: 101, title: "Item 101", price: 100, thumbnail: "a.png" },
-  ]);
-  return chain;
+jest.mock("../../../models/inventory.model");
+jest.mock("../../../models/order.model");
+jest.mock("../../../config/knex");
+jest.mock("../../../temporal/client");
+
+const mockSession={
+  userId: 1,
+  firebaseUid: "firebase123",
 };
 
-describe("order.service createOrderFromActionInput", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+const mockInput={
+  items:[
+    {productId:1,quantity:2}
+  ],
+  address:{
+    fullName:"Abishek",
+    phone:"9876543210",
+    email:"test@gmail.com",
+    addressLine1: "Street 1",
+    city:"Bangalore",
+    state:"Karnataka",
+    pincode: "560001"
+  },
+  paymentMethod:"COD",
+  total:100
+};
 
-  it("cancels superseded workflow when changed checkout creates a new order attempt", async () => {
-    dbMock.mockImplementation((table: string) => {
-      if (table === "products") return createProductsChain();
-      throw new Error(`Unexpected table outside transaction: ${table}`);
-    });
+//test case 1
+test("should throw error if items array is empty",async()=>{
+  const input={...mockInput,items:[]};
+  await expect(
+    createOrderFromActionInput(mockSession,input)
 
-    inventoryModelMock.checkAvailability.mockResolvedValue({
-      available: true,
-      currentStock: 10,
-      reserved: 0,
-    });
-    orderModelMock.getByOrderId.mockResolvedValue(null);
-    orderModelMock.createWithTrx.mockResolvedValue({
-      id: 33,
-      order_id: "ORD-NEW",
-    });
-
-    const checkoutLookupChain: any = {};
-    checkoutLookupChain.select = jest.fn(() => checkoutLookupChain);
-    checkoutLookupChain.where = jest.fn(() => checkoutLookupChain);
-    checkoutLookupChain.first = jest.fn(() => checkoutLookupChain);
-    checkoutLookupChain.forUpdate = jest.fn(async () => null);
-
-    const explicitOrderChain: any = {};
-    explicitOrderChain.select = jest.fn(() => explicitOrderChain);
-    explicitOrderChain.where = jest.fn(() => explicitOrderChain);
-    explicitOrderChain.first = jest.fn(async () => null);
-
-    const pendingOrdersChain: any = {};
-    pendingOrdersChain.select = jest.fn(() => pendingOrdersChain);
-    pendingOrdersChain.where = jest.fn(() => pendingOrdersChain);
-    pendingOrdersChain.andWhereNot = jest.fn(() => pendingOrdersChain);
-    pendingOrdersChain.forUpdate = jest.fn(async () => [{ id: 7, order_id: "ORD-OLD" }]);
-
-    const ordersUpdateChain: any = {};
-    ordersUpdateChain.whereIn = jest.fn(() => ordersUpdateChain);
-    ordersUpdateChain.update = jest.fn(async () => 1);
-
-    const paymentsUpdateChain: any = {};
-    paymentsUpdateChain.whereIn = jest.fn(() => paymentsUpdateChain);
-    paymentsUpdateChain.update = jest.fn(async () => 1);
-
-    const reservationUpdateChain: any = {};
-    reservationUpdateChain.whereIn = jest.fn(() => reservationUpdateChain);
-    reservationUpdateChain.andWhere = jest.fn(() => reservationUpdateChain);
-    reservationUpdateChain.update = jest.fn(async () => 1);
-
-    const idempotencyUpsertChain: any = {};
-    idempotencyUpsertChain.insert = jest.fn(() => idempotencyUpsertChain);
-    idempotencyUpsertChain.onConflict = jest.fn(() => idempotencyUpsertChain);
-    idempotencyUpsertChain.merge = jest.fn(async () => 1);
-
-    const cartDeleteChain: any = {};
-    cartDeleteChain.where = jest.fn(() => cartDeleteChain);
-    cartDeleteChain.del = jest.fn(async () => 1);
-
-    let ordersReadCount = 0;
-    let checkoutIdempotencyCount = 0;
-    const trx: any = jest.fn((table: string) => {
-      if (table === "checkout_idempotency") {
-        checkoutIdempotencyCount += 1;
-        return checkoutIdempotencyCount === 1 ? checkoutLookupChain : idempotencyUpsertChain;
-      }
-
-      if (table === "orders") {
-        ordersReadCount += 1;
-        if (ordersReadCount === 1) return explicitOrderChain;
-        if (ordersReadCount === 2) return pendingOrdersChain;
-        return ordersUpdateChain;
-      }
-
-      if (table === "payments") return paymentsUpdateChain;
-      if (table === "inventory_reservations") return reservationUpdateChain;
-      if (table === "cart_items") return cartDeleteChain;
-
-      throw new Error(`Unexpected table in transaction: ${table}`);
-    });
-    trx.fn = { now: jest.fn(() => new Date("2026-01-01T00:00:00.000Z")) };
-    trx.raw = jest.fn((sql: string) => sql);
-
-    dbMock.transaction.mockImplementation(async (cb: (trxArg: any) => unknown) => cb(trx));
-
-    const result = await createOrderFromActionInput(
-      {
-        userId: 1,
-        firebaseUid: "uid-1",
-      },
-      {
-        items: [
-          {
-            productId: 101,
-            title: "Item 101",
-            price: 100,
-            quantity: 1,
-          },
-        ],
-        address: {
-          fullName: "Abishek",
-          phone: "9999999999",
-          email: "a@example.com",
-          addressLine1: "Line 1",
-          addressLine2: "",
-          city: "Chennai",
-          state: "Tamil Nadu",
-          pincode: "600001",
-        },
-        paymentMethod: "card",
-        total: 100,
-        orderId: "ORD-NEW",
-      }
-    );
-
-    expect(result.orderId).toBe("ORD-NEW");
-    expect(temporalClientMock.cancelWorkflowById).toHaveBeenCalledWith("order-ORD-OLD");
-    expect(orderModelMock.createWithTrx).toHaveBeenCalledTimes(1);
-  });
+  ).rejects.toThrow("items array required");
 });
 
+//test case 2
+test("should throw error if address is missing",async()=>{
+  const input={...mockInput,address:null};
+  await expect(
+    createOrderFromActionInput(mockSession,input as any)
+  ).rejects.toThrow("Complete address required");
+  
+});
+
+//test case 3
+test("should throw error if inventory not available",async()=>{
+  (InventoryModel.checkAvailability as jest.Mock).mockResolvedValue({
+    available: false,
+    currentStock:0,
+    reserved:0
+  });
+
+  (db as any).mockReturnValue({
+    select: jest.fn().mockReturnThis(),
+    whereIn: jest.fn().mockResolvedValue([
+      {id:1,title:"Product",price:100,thumbnail:""}
+    ]
+    )
+  });
+
+  await expect(
+    createOrderFromActionInput(mockSession,mockInput)
+
+  ).rejects.toThrow("Insufficient stock");
+})

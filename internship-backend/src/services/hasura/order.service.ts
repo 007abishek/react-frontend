@@ -13,9 +13,6 @@ type SessionUser = {
 type CreateOrderInput = {
   items: Array<{
     productId: number;
-    title: string;
-    price: number;
-    thumbnail?: string;
     quantity: number;
   }>;
   address: {
@@ -184,7 +181,7 @@ export async function createOrderFromActionInput(
 
   const result = await db.transaction(async (trx): Promise<CreateOrderTxResult> => {
     const idempotentRecord = await trx("checkout_idempotency")
-      .select("order_external_id", "expires_at")
+      .select("order_external_id", "expires_at", "request_hash")
       .where({
         user_id: session.userId,
         idempotency_key: idempotencyKey,
@@ -197,6 +194,10 @@ export async function createOrderFromActionInput(
       new Date(String(idempotentRecord.expires_at)).getTime() > Date.now();
 
     if (idempotentRecord?.order_external_id && hasValidIdempotencyWindow) {
+      if (String(idempotentRecord.request_hash ?? "") !== requestHash) {
+        throw new Error("Checkout attempt data changed for the same orderId");
+      }
+
       const existingOrder = await OrderModel.getByOrderId(
         String(idempotentRecord.order_external_id),
         session.userId

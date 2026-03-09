@@ -29,6 +29,10 @@ export const handleCreateStripePaymentIntentAction = async (req: Request, res: R
       res.status(400).json({ message });
       return;
     }
+    if (message === "Amount mismatch for order" || message === "Order total is invalid") {
+      res.status(409).json({ message });
+      return;
+    }
     if (message === "Order not found") {
       res.status(404).json({ message });
       return;

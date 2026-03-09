@@ -71,7 +71,7 @@ export async function initiatePaymentActivity(params: {
     amount: params.amount,
     currency: (params.currency ?? "inr").toLowerCase(),
     provider,
-    status: method === "cod" ? "pending" : "pending",
+    status: "pending",
     stripePaymentIntentId: null,
   });
 }

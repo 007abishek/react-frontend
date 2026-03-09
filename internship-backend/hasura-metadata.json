@@ -14,9 +14,6 @@
           "name": "CreateOrderItemInput",
           "fields": [
             { "name": "productId", "type": "Int!" },
-            { "name": "title", "type": "String!" },
-            { "name": "price", "type": "numeric!" },
-            { "name": "thumbnail", "type": "String" },
             { "name": "quantity", "type": "Int!" }
           ]
         },

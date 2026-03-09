@@ -183,21 +183,11 @@ components:
     OrderItemInput:
       type: object
       properties:
-        id:
+        productId:
           type: integer
-        title:
-          type: string
-        price:
-          type: number
-        thumbnail:
-          type: string
-        images:
-          type: array
-          items:
-            type: string
         quantity:
           type: integer
-      required: [id, title, price, quantity]
+      required: [productId, quantity]
 
     CreateOrderRequest:
       type: object
