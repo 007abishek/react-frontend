@@ -1,4 +1,5 @@
 import "dotenv/config";
+import fs from "fs";
 import path from "path";
 
 import { NativeConnection, Worker } from "@temporalio/worker";
@@ -20,11 +21,17 @@ async function run() {
       ...lambdaActivities,
     };
 
+    const workflowEntrypointTs = path.join(__dirname, "workflows", "index.ts");
+    const workflowEntrypointJs = path.join(__dirname, "workflows", "index.js");
+    const workflowsPath = fs.existsSync(workflowEntrypointTs)
+      ? workflowEntrypointTs
+      : workflowEntrypointJs;
+
     const worker = await Worker.create({
       connection,
       namespace: TEMPORAL_NAMESPACE,
       taskQueue: TEMPORAL_TASK_QUEUE,
-      workflowsPath: path.join(__dirname, "workflows", "index.ts"),
+      workflowsPath,
       activities,
     });
 
