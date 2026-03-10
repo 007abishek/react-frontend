@@ -33,6 +33,5 @@ describe("Home component", () => {
     cy.contains("Todos").should("be.visible");
     cy.contains("Products").should("be.visible");
     cy.contains("GitHub").should("be.visible");
-    cy.contains("button", "Test Sentry").should("be.visible");
   });
 });

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useAppDispatch } from "../../app/hooks";
+import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import ProductDetailSkeleton from "./components/ProductDetailSkeleton";
 import { addToCart } from "./cartSlice";
 import { useGetProductByIdQuery } from "./productApi";
@@ -10,6 +10,8 @@ export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const user = useAppSelector((state) => state.auth.user);
+  const isGuest = user?.provider === "guest";
 
   const parsedProductId = productIdParamSchema.safeParse(id);
   const productId = parsedProductId.success ? parsedProductId.data : 0;
@@ -32,7 +34,7 @@ export default function ProductDetailPage() {
   const decrementQuantity = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
 
   const handleAddToCart = () => {
-    if (!product || isOutOfStock) return;
+    if (!product || isOutOfStock || isGuest) return;
 
     dispatch(
       addToCart({
@@ -50,7 +52,7 @@ export default function ProductDetailPage() {
   };
 
   const handleBuyNow = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || isGuest) return;
     handleAddToCart();
     setTimeout(() => navigate("/cart"), 500);
   };
@@ -116,18 +118,24 @@ export default function ProductDetailPage() {
             <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:gap-4">
               <button
                 onClick={handleAddToCart}
-                disabled={isOutOfStock}
+                disabled={isOutOfStock || isGuest}
                 className="flex-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 py-2.5 sm:py-3 font-semibold transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-600"
               >
-                {isOutOfStock ? "Out of Stock" : addedToCart ? "Added to Cart" : "Add to Cart"}
+                {isGuest
+                  ? "Sign Up to Buy"
+                  : isOutOfStock
+                    ? "Out of Stock"
+                    : addedToCart
+                      ? "Added to Cart"
+                      : "Add to Cart"}
               </button>
 
               <button
                 onClick={handleBuyNow}
-                disabled={isOutOfStock}
+                disabled={isOutOfStock || isGuest}
                 className="flex-1 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 py-3 font-semibold transition hover:from-purple-700 hover:to-pink-700 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-600"
               >
-                {isOutOfStock ? "Unavailable" : "Buy Now"}
+                {isGuest ? "Sign Up First" : isOutOfStock ? "Unavailable" : "Buy Now"}
               </button>
             </div>
 

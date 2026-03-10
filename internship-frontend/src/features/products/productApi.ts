@@ -1,48 +1,7 @@
-import { gql, useQuery } from "@apollo/client";
+import { useEffect, useState } from "react";
+
+import { fetchProductById, fetchProducts } from "./hasuraCommerce";
 import type { Product } from "./types";
-
-const GET_PRODUCTS = gql`
-  query GetProducts {
-    products(order_by: { id: asc }) {
-      id
-      title
-      description
-      price
-      category
-      thumbnail
-      images
-      rating
-      stock
-    }
-  }
-`;
-
-const GET_PRODUCT_BY_ID = gql`
-  query GetProductById($id: Int!) {
-    products_by_pk(id: $id) {
-      id
-      title
-      description
-      price
-      category
-      thumbnail
-      images
-      rating
-      stock
-    }
-  }
-`;
-
-type ProductRow = Product;
-
-function normalizeProduct(product: ProductRow): Product {
-  return {
-    ...product,
-    price: Number(product.price),
-    rating: Number(product.rating),
-    stock: Number(product.stock),
-  };
-}
 
 export function useGetProductsQuery(): {
   data?: Product[];
@@ -50,11 +9,38 @@ export function useGetProductsQuery(): {
   isError: boolean;
   error?: unknown;
 } {
-  const { data, loading, error } = useQuery<{ products: ProductRow[] }>(GET_PRODUCTS);
+  const [data, setData] = useState<Product[]>();
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<unknown>();
+
+  useEffect(() => {
+    let active = true;
+
+    setIsLoading(true);
+    setError(undefined);
+
+    void fetchProducts()
+      .then((products) => {
+        if (!active) return;
+        setData(products);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return {
-    data: data?.products.map(normalizeProduct),
-    isLoading: loading,
+    data,
+    isLoading,
     isError: Boolean(error),
     error,
   };
@@ -69,14 +55,47 @@ export function useGetProductByIdQuery(
   isError: boolean;
   error?: unknown;
 } {
-  const { data, loading, error } = useQuery<{ products_by_pk: ProductRow | null }>(GET_PRODUCT_BY_ID, {
-    variables: { id },
-    skip: options?.skip ?? false,
-  });
+  const [data, setData] = useState<Product | null>();
+  const [isLoading, setIsLoading] = useState(!(options?.skip ?? false));
+  const [error, setError] = useState<unknown>();
+
+  useEffect(() => {
+    let active = true;
+
+    if (options?.skip ?? false) {
+      setIsLoading(false);
+      setData(undefined);
+      setError(undefined);
+      return () => {
+        active = false;
+      };
+    }
+
+    setIsLoading(true);
+    setError(undefined);
+
+    void fetchProductById(id)
+      .then((product) => {
+        if (!active) return;
+        setData(product);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [id, options?.skip]);
 
   return {
-    data: data?.products_by_pk ? normalizeProduct(data.products_by_pk) : data?.products_by_pk ?? undefined,
-    isLoading: loading,
+    data,
+    isLoading,
     isError: Boolean(error),
     error,
   };

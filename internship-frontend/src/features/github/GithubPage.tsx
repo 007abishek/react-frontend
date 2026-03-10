@@ -14,7 +14,8 @@ export default function GithubPage() {
   const [page, setPage] = useState(1);
 
   const debouncedQuery = useDebounce(query, 500);
-
+ 
+  //immediate validation for query
   const immediateQueryError = useMemo(() => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return "";
@@ -23,6 +24,7 @@ export default function GithubPage() {
     return validation.success ? "" : validation.error.issues[0]?.message ?? "Invalid search query";
   }, [query]);
 
+  //debounced validation for api calls
   const validatedDebouncedQuery = useMemo(() => {
     const trimmedQuery = debouncedQuery.trim();
     if (!trimmedQuery) return "";

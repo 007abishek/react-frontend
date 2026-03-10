@@ -1,7 +1,8 @@
 import { gql } from "@apollo/client";
 import { apolloClient } from "./apolloClient";
+import { resolveHasuraUrl } from "./hasuraUrl";
 
-const HASURA_URL = import.meta.env.VITE_HASURA_URL || "http://localhost:8080/v1/graphql";
+const HASURA_URL = resolveHasuraUrl();
 
 export const HASURA_TOKEN_KEY = "jwt";
 
@@ -25,7 +26,7 @@ export function setHasuraToken(token: string): void {
   localStorage.removeItem("hasura_jwt");
 }
 
-export async function getHasuraToken(forceRefresh = false): Promise<string> {
+export async function getHasuraToken(): Promise<string> {
   const existing = localStorage.getItem(HASURA_TOKEN_KEY);
   if (existing) return existing;
 
@@ -35,10 +36,6 @@ export async function getHasuraToken(forceRefresh = false): Promise<string> {
     localStorage.setItem(HASURA_TOKEN_KEY, legacyHasuraToken);
     localStorage.removeItem("hasura_jwt");
     return legacyHasuraToken;
-  }
-
-  if (forceRefresh) {
-    throw new Error("Missing JWT. Please login again.");
   }
 
   throw new Error("Missing JWT. Please login again.");
@@ -53,18 +50,18 @@ export async function hasuraRequest<T>(
   query: string,
   variables?: Record<string, unknown>
 ): Promise<T> {
-  let token = await getHasuraToken();
+  const token = await getHasuraToken();
   const document = gql(query);
   const operationType = getOperationType(query);
 
-  const run = async (jwt: string) => {
+  const run = async () => {
     if (operationType === "mutation") {
       const result = await apolloClient.mutate<T>({
         mutation: document,
         variables,
         context: {
           headers: {
-            Authorization: `Bearer ${jwt}`,
+            Authorization: `Bearer ${token}`,
           },
         },
       });
@@ -84,7 +81,7 @@ export async function hasuraRequest<T>(
       fetchPolicy: "no-cache",
       context: {
         headers: {
-          Authorization: `Bearer ${jwt}`,
+          Authorization: `Bearer ${token}`,
         },
       },
     });
@@ -95,13 +92,34 @@ export async function hasuraRequest<T>(
     return result.data;
   };
 
+  return runWithSingleRetry(run);
+}
+
+async function runWithSingleRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
-    return await run(token);
-  } catch {
-    // One retry with a refreshed Hasura token (expired/stale token case).
-    token = await getHasuraToken(true);
-    return run(token);
+    return await fn();
+  } catch (error) {
+    if (!isTransientNetworkError(error)) {
+      throw error;
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    return fn();
   }
+}
+
+function isTransientNetworkError(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String((error as { message?: unknown })?.message ?? "");
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("failed to fetch") ||
+    normalized.includes("networkerror") ||
+    normalized.includes("econnreset") ||
+    normalized.includes("connection reset")
+  );
 }
 
 function getOperationType(query: string): "query" | "mutation" | "subscription" | null {

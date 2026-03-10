@@ -1,0 +1,99 @@
+services:
+  - type: web
+    name: internship-backend-api
+    env: node
+    rootDir: internship-backend
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENFORCE_HTTPS_PAYMENTS
+        value: "true"
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: POSTGRES_URL
+        sync: false
+      - key: HASURA_JWT_SECRET
+        sync: false
+      - key: HASURA_ACTION_SECRET
+        sync: false
+      - key: HASURA_EVENT_SECRET
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: TEMPORAL_ADDRESS
+        sync: false
+      - key: TEMPORAL_NAMESPACE
+        value: default
+      - key: TEMPORAL_TASK_QUEUE
+        value: ecommerce-orders
+      - key: INVENTORY_CLEANUP_CRON_SCHEDULE
+        value: "* * * * *"
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: EMAIL_LAMBDA_FUNCTION_NAME
+        sync: false
+
+  - type: worker
+    name: internship-backend-worker
+    env: node
+    rootDir: internship-backend
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: POSTGRES_URL
+        sync: false
+      - key: HASURA_JWT_SECRET
+        sync: false
+      - key: HASURA_ACTION_SECRET
+        sync: false
+      - key: HASURA_EVENT_SECRET
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: TEMPORAL_ADDRESS
+        sync: false
+      - key: TEMPORAL_NAMESPACE
+        value: default
+      - key: TEMPORAL_TASK_QUEUE
+        value: ecommerce-orders
+      - key: INVENTORY_CLEANUP_CRON_SCHEDULE
+        value: "* * * * *"
+      - key: AWS_REGION
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: EMAIL_LAMBDA_FUNCTION_NAME
+        sync: false

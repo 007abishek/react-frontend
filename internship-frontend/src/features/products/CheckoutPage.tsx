@@ -83,6 +83,9 @@ const COMMON_CITIES = [
   "Nashik",
   "Vadodara",
 ];
+
+
+
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error && err.message.trim()) {
     return err.message;
@@ -171,6 +174,8 @@ export default function CheckoutPage() {
 
   // Payment State
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "card">("cod");
+
+
 
   const cityOptions = useMemo(() => {
     const q = address.city.trim().toLowerCase();
@@ -550,9 +555,12 @@ export default function CheckoutPage() {
             {/* Address Form */}
             {step === "address" && (
               <div className="rounded-2xl border border-slate-700 bg-slate-800/50 p-4 backdrop-blur-lg sm:p-6">
-                <h2 className="mb-6 text-xl font-bold text-white sm:text-2xl">
-                  Shipping Address
-                </h2>
+                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-xl font-bold text-white sm:text-2xl">
+                    Shipping Address
+                  </h2>
+                
+                </div>
                 <form onSubmit={handleAddressSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <input

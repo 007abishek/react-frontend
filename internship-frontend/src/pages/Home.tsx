@@ -9,24 +9,6 @@ export default function Home() {
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight ">Dashboard</h1>
           <p className="mt-1 text-sm sm:text-base text-slate-500">Quick access to your features</p>
         </div>
-
-        <button
-          className="
-            w-full sm:w-auto
-            rounded-lg sm:rounded-xl
-            bg-red-500
-            px-4 py-2 sm:px-5 sm:py-2.5
-            text-sm font-medium
-            text-white
-            transition
-            hover:bg-red-600
-          "
-          onClick={() => {
-            throw new Error("Sentry test error");
-          }}
-        >
-          Test Sentry
-        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4  sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">

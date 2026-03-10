@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -11,9 +11,8 @@ import {
 import type { FirebaseError } from "firebase/app";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 
-import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { useAppSelector } from "@/app/hooks";
 import { auth, githubProvider, googleProvider } from "@/firebase/config";
-import { loginSuccess } from "@/features/auth/authSlice";
 import AuthCard from "@/features/auth/components/AuthCard";
 import AuthShell from "@/features/auth/components/AuthShell";
 import { loginFormSchema } from "@/features/auth/schemas/authSchemas";
@@ -27,7 +26,6 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, loading: authLoading } = useAppSelector((state) => state.auth);
@@ -82,20 +80,6 @@ export default function Login() {
     return typeof email === "string" ? email : null;
   };
 
-  const handleSuccess = (
-    user: { uid: string; email: string | null },
-    provider: AuthProvider
-  ) => {
-    dispatch(
-      loginSuccess({
-        uid: user.uid,
-        email: user.email,
-        provider,
-        isGuest: provider === "guest",
-      })
-    );
-  };
-
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       navigate(redirectPath, { replace: true });
@@ -112,7 +96,8 @@ export default function Login() {
 
         const providerId = result.providerId ?? "";
         const provider: AuthProvider = providerId === "github.com" ? "github" : "google";
-        handleSuccess(result.user, provider);
+        setError(null);
+        console.log("OAuth redirect completed for provider:", provider);
       } catch (err) {
         if (!mounted) return;
 
@@ -157,7 +142,7 @@ export default function Login() {
         return;
       }
 
-      handleSuccess(response.user, "password");
+      setError(null);
     } catch (err) {
       const firebaseError = err as FirebaseError;
       setError(getAuthErrorMessage(firebaseError.code));
@@ -174,8 +159,8 @@ export default function Login() {
         return;
       }
 
-      const response = await signInWithPopup(auth, googleProvider);
-      handleSuccess(response.user, "google");
+      await signInWithPopup(auth, googleProvider);
+      setError(null);
     } catch (err) {
       const firebaseError = err as FirebaseError;
       if (firebaseError.code === "auth/account-exists-with-different-credential") {
@@ -202,8 +187,8 @@ export default function Login() {
   const loginGithub = async () => {
     try {
       setLoading(true);
-      const response = await signInWithPopup(auth, githubProvider);
-      handleSuccess(response.user, "github");
+      await signInWithPopup(auth, githubProvider);
+      setError(null);
     } catch (err) {
       const firebaseError = err as FirebaseError;
       if (firebaseError.code === "auth/account-exists-with-different-credential") {
@@ -230,13 +215,18 @@ export default function Login() {
   const loginGuest = async () => {
     try {
       setLoading(true);
-      const response = await signInAnonymously(auth);
-      handleSuccess(response.user, "guest");
+      await signInAnonymously(auth);
+      setError(null);
     } catch {
       setError("Guest login failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEmailSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void loginEmail();
   };
 
   return (
@@ -256,6 +246,7 @@ export default function Login() {
           </p>
         }
       >
+        <form onSubmit={handleEmailSubmit}>
         {/* Email Field */}
         <div className="mb-3">
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -337,8 +328,7 @@ export default function Login() {
 
         {/* Login Button */}
         <button
-          type="button"
-          onClick={loginEmail}
+          type="submit"
           disabled={loading}
           className="
             group relative w-full overflow-hidden
@@ -368,6 +358,7 @@ export default function Login() {
           </span>
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
         </button>
+        </form>
 
         {/* Divider */}
         <div className="my-5 flex items-center gap-3 text-xs font-medium text-slate-400">

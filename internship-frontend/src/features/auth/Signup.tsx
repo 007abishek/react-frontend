@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -66,6 +66,11 @@ export default function Signup() {
     }
   };
 
+  const handleSignupSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void signup();
+  };
+
   return (
     <AuthShell>
       <AuthCard
@@ -81,34 +86,39 @@ export default function Signup() {
           </p>
         }
       >
-        <input
-          className="mb-3 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Email"
-          value={email}
-          onChange={(event) => {
-            setEmail(event.target.value);
-            setError(null);
-          }}
-        />
+        <form onSubmit={handleSignupSubmit}>
+          <input
+            type="email"
+            autoComplete="email"
+            className="mb-3 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Email"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setError(null);
+            }}
+          />
 
-        <input
-          type="password"
-          className="mb-4 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Password"
-          value={password}
-          onChange={(event) => {
-            setPassword(event.target.value);
-            setError(null);
-          }}
-        />
+          <input
+            type="password"
+            autoComplete="new-password"
+            className="mb-4 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Password"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setError(null);
+            }}
+          />
 
-        <button
-          onClick={signup}
-          disabled={loading}
-          className="w-full rounded-lg bg-green-600 py-3 font-medium text-white shadow-md transition hover:bg-green-700 hover:shadow-lg disabled:opacity-50"
-        >
-          {loading ? "Creating account..." : "Create Account"}
-        </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-green-600 py-3 font-medium text-white shadow-md transition hover:bg-green-700 hover:shadow-lg disabled:opacity-50"
+          >
+            {loading ? "Creating account..." : "Create Account"}
+          </button>
+        </form>
       </AuthCard>
     </AuthShell>
   );

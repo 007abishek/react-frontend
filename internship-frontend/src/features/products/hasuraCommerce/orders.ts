@@ -1,5 +1,4 @@
 import { hasuraRequest, subscribeHasura, type Unsubscribe } from "../../../utils/hasuraClient";
-import type { CartItem } from "../cartSlice";
 import { getFallbackPaymentStatus, getPaymentStatus, normalizePaymentStatus } from "./payments";
 import type {
   CheckoutOrderInput,
@@ -9,6 +8,46 @@ import type {
   PaymentStatus,
   ShippingAddress,
 } from "./types";
+
+const ORDER_SUMMARY_FIELDS = `
+  id
+  order_id
+  status
+  payment_method
+  total
+  created_at
+`;
+
+const ORDER_ITEM_FIELDS = `
+  id
+  product_id
+  title
+  price
+  thumbnail
+  quantity
+`;
+
+const SHIPPING_ADDRESS_FIELDS = `
+  full_name
+  phone
+  email
+  address_line1
+  address_line2
+  city
+  state
+  pincode
+`;
+
+type OrderDetailRow = OrderSummaryRow & {
+  order_items: OrderItem[];
+  shipping_address: ShippingAddress[];
+};
+
+type OrderDetailResult = {
+  order: OrderSummary | null;
+  items: OrderItem[];
+  address: ShippingAddress | null;
+};
 
 async function enrichOrder(order: OrderSummaryRow): Promise<OrderSummary> {
   const paymentStatus = await getPaymentStatus(order);
@@ -77,11 +116,10 @@ export async function createOrderViaAction(input: CheckoutOrderInput): Promise<{
       }
     `,
     {
-      items: input.items.map((item: CartItem) => ({
+      items: input.items.map((item) => ({
         productId: item.id,
         title: item.title,
         price: item.price,
-        thumbnail: item.thumbnail || item.images?.[0] || "",
         quantity: item.quantity,
       })),
       address: input.address,
@@ -126,25 +164,6 @@ export async function createStripePaymentIntentViaAction(input: {
   return data.createStripePaymentIntent;
 }
 
-export async function fetchOrderHistory(): Promise<OrderSummary[]> {
-  const data = await hasuraRequest<{ orders: OrderSummaryRow[] }>(
-    `
-      query GetOrderHistory {
-        orders(order_by: { created_at: desc }) {
-          id
-          order_id
-          status
-          payment_method
-          total
-          created_at
-        }
-      }
-    `
-  );
-
-  return enrichOrders(data.orders);
-}
-
 export async function subscribeOrderHistory(
   onData: (orders: OrderSummary[]) => void,
   onError?: (error: Error) => void
@@ -153,12 +172,7 @@ export async function subscribeOrderHistory(
     `
       subscription OrderHistoryRealtime {
         orders(order_by: { created_at: desc }) {
-          id
-          order_id
-          status
-          payment_method
-          total
-          created_at
+          ${ORDER_SUMMARY_FIELDS}
         }
       }
     `,
@@ -175,118 +189,51 @@ export async function subscribeOrderHistory(
   );
 }
 
-export async function fetchOrderByExternalId(orderId: string): Promise<{
-  order: OrderSummary | null;
-  items: OrderItem[];
-  address: ShippingAddress | null;
-}> {
-  const orderData = await hasuraRequest<{ orders: OrderSummaryRow[] }>(
+export async function fetchOrderByExternalId(orderId: string): Promise<OrderDetailResult> {
+  const data = await hasuraRequest<{ orders: OrderDetailRow[] }>(
     `
       query GetOrder($orderId: String!) {
         orders(where: { order_id: { _eq: $orderId } }, limit: 1) {
-          id
-          order_id
-          status
-          payment_method
-          total
-          created_at
+          ${ORDER_SUMMARY_FIELDS}
+          order_items {
+            ${ORDER_ITEM_FIELDS}
+          }
+          shipping_address: shipping_addresses(limit: 1) {
+            ${SHIPPING_ADDRESS_FIELDS}
+          }
         }
       }
     `,
     { orderId }
   );
 
-  const rawOrder = orderData.orders[0] ?? null;
-  const order = rawOrder ? await enrichOrder(rawOrder) : null;
-  if (!order) {
+  const row = data.orders[0] ?? null;
+  if (!row) {
     return { order: null, items: [], address: null };
   }
 
-  const [itemsData, addressData] = await Promise.all([
-    hasuraRequest<{ order_items: OrderItem[] }>(
-      `
-        query GetOrderItems($orderPk: Int!) {
-          order_items(where: { order_id: { _eq: $orderPk } }) {
-            id
-            product_id
-            title
-            price
-            thumbnail
-            quantity
-          }
-        }
-      `,
-      { orderPk: order.id }
-    ),
-    hasuraRequest<{ shipping_addresses: ShippingAddress[] }>(
-      `
-        query GetShippingAddress($orderPk: Int!) {
-          shipping_addresses(where: { order_id: { _eq: $orderPk } }, limit: 1) {
-            full_name
-            phone
-            email
-            address_line1
-            address_line2
-            city
-            state
-            pincode
-          }
-        }
-      `,
-      { orderPk: order.id }
-    ),
-  ]);
-
   return {
-    order,
-    items: itemsData.order_items,
-    address: addressData.shipping_addresses[0] ?? null,
+    order: await enrichOrder(row),
+    items: row.order_items,
+    address: row.shipping_address[0] ?? null,
   };
 }
 
 export async function subscribeOrderByExternalId(
   orderId: string,
-  onData: (value: {
-    order: OrderSummary | null;
-    items: OrderItem[];
-    address: ShippingAddress | null;
-  }) => void,
+  onData: (value: OrderDetailResult) => void,
   onError?: (error: Error) => void
 ): Promise<Unsubscribe> {
-  return subscribeHasura<{
-    orders: Array<
-      OrderSummaryRow & {
-        order_items: OrderItem[];
-        shipping_address: ShippingAddress[];
-      }
-    >;
-  }>(
+  return subscribeHasura<{ orders: OrderDetailRow[] }>(
     `
       subscription OrderDetailRealtime($orderId: String!) {
         orders(where: { order_id: { _eq: $orderId } }, limit: 1) {
-          id
-          order_id
-          status
-          payment_method
-          total
-          created_at
+          ${ORDER_SUMMARY_FIELDS}
           order_items {
-            id
-            product_id
-            title
-            price
-            thumbnail
-            quantity
+            ${ORDER_ITEM_FIELDS}
           }
-          shipping_address: shipping_addresses {
-            full_name
-            phone
-            email
-            address_line1
-            address_line2
-            city
-            state
-            pincode
+          shipping_address: shipping_addresses(limit: 1) {
+            ${SHIPPING_ADDRESS_FIELDS}
           }
         }
       }
@@ -299,23 +246,21 @@ export async function subscribeOrderByExternalId(
         return;
       }
 
-      const firstAddress = row.shipping_address[0] ?? null;
-
       const { order_items, shipping_address, ...orderRow } = row;
       void enrichOrder(orderRow)
         .then((order) => {
           onData({
             order,
-            items: order_items ?? [],
-            address: firstAddress,
+            items: order_items,
+            address: shipping_address[0] ?? null,
           });
         })
         .catch((error) => {
           onError?.(error instanceof Error ? error : new Error("Failed to enrich payment status"));
           onData({
             order: toOrderSummaryWithFallback(orderRow),
-            items: order_items ?? [],
-            address: firstAddress,
+            items: order_items,
+            address: shipping_address[0] ?? null,
           });
         });
     },
@@ -329,24 +274,12 @@ export async function fetchOrderConfirmationByExternalId(orderId: string): Promi
   paymentStatus: PaymentStatus;
 } | null> {
   const data = await hasuraRequest<{
-    orders: Array<{
-      order_id: string;
-      status: string;
-      payment_method: string;
-      total: number;
-      created_at: string;
-      id: number;
-    }>;
+    orders: OrderSummaryRow[];
   }>(
     `
       query GetOrderConfirmation($orderId: String!) {
         orders(where: { order_id: { _eq: $orderId } }, limit: 1) {
-          id
-          order_id
-          status
-          payment_method
-          total
-          created_at
+          ${ORDER_SUMMARY_FIELDS}
         }
       }
     `,
@@ -356,14 +289,7 @@ export async function fetchOrderConfirmationByExternalId(orderId: string): Promi
   const row = data.orders[0];
   if (!row) return null;
 
-  const paymentStatus = await getPaymentStatus({
-    id: row.id,
-    order_id: row.order_id,
-    status: row.status,
-    payment_method: row.payment_method,
-    total: Number(row.total),
-    created_at: row.created_at,
-  });
+  const paymentStatus = await getPaymentStatus(row);
 
   return {
     orderId: row.order_id,

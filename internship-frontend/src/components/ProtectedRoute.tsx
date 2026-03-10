@@ -5,10 +5,11 @@ import { useAppSelector } from "@/app/hooks";
 
 interface Props {
   children: ReactNode;
+  allowGuest?: boolean;
 }
 
-export default function ProtectedRoute({ children }: Props) {
-  const { isAuthenticated, loading } = useAppSelector((state) => state.auth);
+export default function ProtectedRoute({ children, allowGuest = true }: Props) {
+  const { isAuthenticated, loading, user } = useAppSelector((state) => state.auth);
   const location = useLocation();
 
   // App is still checking auth (Firebase listener not resolved yet).
@@ -23,6 +24,10 @@ export default function ProtectedRoute({ children }: Props) {
   // Not authenticated, redirect to login.
   if (!isAuthenticated) {
     return <Navigate replace state={{ from: location }} to="/login" />;
+  }
+
+  if (!allowGuest && user?.provider === "guest") {
+    return <Navigate replace state={{ from: location }} to="/products" />;
   }
 
   // Authenticated, allow access.

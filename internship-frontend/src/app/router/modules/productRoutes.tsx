@@ -14,9 +14,9 @@ const OrderDetailPage = lazy(() => import("@/features/products/OrderDetailPage")
 export const productRoutes: RouteObject[] = [
   createProtectedRoute("/products", <ProductsPage />),
   createProtectedRoute("/product/:id", <ProductDetailPage />),
-  createProtectedRoute("/cart", <CartPage />),
-  createProtectedRoute("/checkout", <CheckoutPage />),
-  createProtectedRoute("/order-success", <OrderSuccessPage />),
-  createProtectedRoute("/orders", <OrderHistoryPage />),
-  createProtectedRoute("/orders/:orderId", <OrderDetailPage />),
+  createProtectedRoute("/cart", <CartPage />, { allowGuest: false }),
+  createProtectedRoute("/checkout", <CheckoutPage />, { allowGuest: false }),
+  createProtectedRoute("/order-success", <OrderSuccessPage />, { allowGuest: false }),
+  createProtectedRoute("/orders", <OrderHistoryPage />, { allowGuest: false }),
+  createProtectedRoute("/orders/:orderId", <OrderDetailPage />, { allowGuest: false }),
 ];

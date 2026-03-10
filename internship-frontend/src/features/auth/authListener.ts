@@ -6,8 +6,9 @@ import { loadCartForUser } from "../../utils/indexedDb";
 import type { AppDispatch } from "../../app/store";
 import { clearHasuraToken, setHasuraToken } from "../../utils/hasuraClient";
 import { clearPaymentStatusCache, fetchCart, syncCart } from "../products/hasuraCommerce";
+import { resolveHasuraUrl } from "../../utils/hasuraUrl";
 
-const HASURA_URL = import.meta.env.VITE_HASURA_URL || "http://localhost:8080/v1/graphql";
+const HASURA_URL = resolveHasuraUrl();
 
 export const startAuthListener = (dispatch: AppDispatch) => {
   return onAuthStateChanged(auth, async (firebaseUser) => {
@@ -82,14 +83,21 @@ export const startAuthListener = (dispatch: AppDispatch) => {
           } else {
             console.error("authLogin returned no token:", payload);
           }
-          clearHasuraToken();
+          throw new Error("authLogin returned no token");
         }
       } else {
         const bodyText = await res.text();
-        console.error("authLogin HTTP error:", res.status, bodyText);
+        throw new Error(`authLogin HTTP error: ${res.status} ${bodyText}`);
       }
     } catch (err) {
       console.warn("Backend auth exchange failed:", err);
+      clearHasuraToken();
+      clearPaymentStatusCache();
+      await signOut(auth);
+      dispatch(logout());
+      dispatch(clearCart());
+      dispatch(authResolved());
+      return;
     }
 
     dispatch(

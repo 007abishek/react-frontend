@@ -9,11 +9,15 @@ export const withSuspense = (element: ReactElement) => (
   <Suspense fallback={suspenseFallback}>{element}</Suspense>
 );
 
-export const withProtection = (element: ReactElement) => (
-  <ProtectedRoute>{element}</ProtectedRoute>
+export const withProtection = (element: ReactElement, allowGuest = true) => (
+  <ProtectedRoute allowGuest={allowGuest}>{element}</ProtectedRoute>
 );
 
-export const createProtectedRoute = (path: string, element: ReactElement): RouteObject => ({
+export const createProtectedRoute = (
+  path: string,
+  element: ReactElement,
+  options?: { allowGuest?: boolean }
+): RouteObject => ({
   path,
-  element: withSuspense(withProtection(element)),
+  element: withSuspense(withProtection(element, options?.allowGuest ?? true)),
 });

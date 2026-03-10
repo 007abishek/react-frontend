@@ -1,8 +1,8 @@
 import { ApolloClient, HttpLink, InMemoryCache, from } from "@apollo/client";
 import { setContext } from "@apollo/client/link/context";
+import { resolveHasuraUrl } from "./hasuraUrl";
 
-const HASURA_URL =
-  import.meta.env.VITE_HASURA_URL || "http://localhost:8080/v1/graphql";
+const HASURA_URL = resolveHasuraUrl();
 const HASURA_TOKEN_KEY = "jwt";
 
 const authLink = setContext((_, { headers }) => {

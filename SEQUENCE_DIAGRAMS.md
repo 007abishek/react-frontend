@@ -1,5 +1,7 @@
 # Sequence Diagrams
 
+Last updated: 2026-03-09
+
 ## 1. Login and Token Exchange
 
 ```mermaid
@@ -11,22 +13,19 @@ sequenceDiagram
   participant BE as Backend /hasura/actions
   participant DB as PostgreSQL
 
-  U->>FE: Login (email/google/github/guest)
-  FE->>FB: Sign-in request
-  FB-->>FE: Firebase session + ID token
+  U->>FE: Login
+  FE->>FB: Firebase sign-in
+  FB-->>FE: Firebase ID token
   FE->>H: mutation authLogin(firebaseIdToken)
   H->>BE: POST /hasura/actions/auth-login
-  BE->>FB: verifyIdToken()
+  BE->>FB: verifyIdToken
   BE->>DB: upsert users
-  BE-->>H: backend JWT + hasura JWT + user
+  BE-->>H: unified token + user
   H-->>FE: action response
-  FE->>FE: store jwt + hasura_jwt
-  FE->>H: query cart_items (authenticated)
-  H->>DB: select cart_items by X-Hasura-User-Id
-  H-->>FE: cart data
+  FE->>FE: store jwt and set Hasura auth
 ```
 
-## 2. Product Browsing and Cart Sync
+## 2. Product Browse and Cart Sync
 
 ```mermaid
 sequenceDiagram
@@ -41,18 +40,17 @@ sequenceDiagram
   H->>DB: select products
   H-->>FE: product list
 
-  U->>FE: Add/Update cart
-  FE->>FE: cartSlice state update
-  FE->>H: mutation sync cart_items
-  H->>DB: delete+insert user cart rows
+  U->>FE: Update cart
+  FE->>H: mutation cart_items
+  H->>DB: upsert/delete cart rows
   H-->>FE: success
 
-  alt Hasura cart sync fails
-    FE->>IDB: saveCartForUser()
+  alt sync fails
+    FE->>IDB: persist fallback cart
   end
 ```
 
-## 3. Checkout (Create Order)
+## 3. Checkout Create Order
 
 ```mermaid
 sequenceDiagram
@@ -62,19 +60,19 @@ sequenceDiagram
   participant BE as Backend create-order action
   participant DB as PostgreSQL
 
-  U->>FE: Submit checkout (address/payment/review)
-  FE->>H: mutation createOrder(...)
+  U->>FE: Submit checkout
+  FE->>H: mutation createOrder
   H->>BE: POST /hasura/actions/create-order
-  BE->>BE: validate session/input/stock
-  BE->>DB: idempotency check (checkout_idempotency)
-  BE->>DB: cancel previous pending order attempts
-  BE->>DB: insert orders + order_items + shipping_addresses
-  BE->>DB: clear cart_items
-  BE-->>H: orderId/status/paymentStatus
-  H-->>FE: action response
+  BE->>BE: validate input and stock
+  BE->>DB: idempotency check
+  BE->>DB: cancel stale pending attempts
+  BE->>DB: insert order graph
+  BE->>DB: clear cart
+  BE-->>H: order response
+  H-->>FE: action result
 ```
 
-## 4. Hasura Event -> Temporal Workflow Start
+## 4. Hasura Event to Temporal
 
 ```mermaid
 sequenceDiagram
@@ -84,75 +82,71 @@ sequenceDiagram
   participant T as Temporal
 
   H->>BE: POST /hasura/events/order-inserted
-  BE->>DB: read workflow payload by order_id
+  BE->>DB: fetch workflow payload
   BE->>T: start orderPlacementWorkflow(order-{orderId})
-  T-->>BE: started/already-started
-  BE-->>H: received=true
+  T-->>BE: started or already running
+  BE-->>H: received
 ```
 
-## 5. Card Payment (Stripe)
+## 5. Stripe Card Payment
 
 ```mermaid
 sequenceDiagram
   actor U as User
   participant FE as Frontend (Stripe Elements)
   participant H as Hasura
-  participant BE as Backend action+webhook
+  participant BE as Backend
   participant S as Stripe
   participant DB as PostgreSQL
   participant T as Temporal
 
-  U->>FE: Choose Card and proceed
-  FE->>H: mutation createStripePaymentIntent(orderId, amount)
+  U->>FE: Choose card payment
+  FE->>H: mutation createStripePaymentIntent
   H->>BE: POST /hasura/actions/create-stripe-payment-intent
-  BE->>S: create/retrieve PaymentIntent
-  BE->>DB: persist payment intent info
+  BE->>S: create/reuse PaymentIntent
+  BE->>DB: save payment info
   BE-->>H: clientSecret + paymentIntentId
   H-->>FE: action response
 
-  U->>FE: Enter card and confirm
-  FE->>S: confirmPayment(clientSecret)
-  S-->>FE: succeeded/processing
-
+  U->>FE: Confirm card details
+  FE->>S: confirmPayment
   S->>BE: webhook payment_intent.succeeded
   BE->>DB: update payment status
-  BE->>T: signal paymentCompleted(order workflow)
+  BE->>T: signal paymentCompleted
 
-  FE->>H: poll getPaymentStatus(orderId)
+  FE->>H: mutation getPaymentStatus
   H->>BE: POST /hasura/actions/get-payment-status
-  BE->>DB: read order/payment
-  BE-->>H: payment status
-  H-->>FE: succeeded
-  FE-->>U: Navigate to /order-success
+  BE->>DB: read order/payment state
+  BE-->>H: status
+  H-->>FE: status
 ```
 
-## 6. Workflow Success/Failure Path
+## 6. Workflow Success and Failure
 
 ```mermaid
 sequenceDiagram
-  participant T as Temporal orderPlacementWorkflow
+  participant T as Temporal order workflow
   participant A as Activities
   participant DB as PostgreSQL
   participant L as AWS Lambda
 
-  T->>A: validateInventory
-  T->>A: reserveInventory (5 min hold)
-  T->>A: initiatePayment (or COD pending record)
+  T->>A: reserveInventory
+  T->>A: initiate or wait payment
 
-  alt payment completed (or COD)
+  alt success
     T->>A: confirmInventory
     T->>A: confirmOrder
-    T->>A: updatePaymentStatusByOrder (COD->succeeded)
+    T->>A: updatePaymentStatus(succeeded)
     T->>L: send confirmation email
   else timeout/failure
     T->>A: releaseInventory
-    T->>A: rollbackOrder (cancelled)
-    T->>A: updatePaymentStatusByOrder(cancelled)
-    T->>L: send payment_failed email
+    T->>A: rollbackOrder(cancelled)
+    T->>A: updatePaymentStatus(cancelled/failed)
+    T->>L: send failure email
   end
 ```
 
-## 7. Order History and Detail Realtime
+## 7. Realtime Order History
 
 ```mermaid
 sequenceDiagram
@@ -163,11 +157,11 @@ sequenceDiagram
   participant BE as Backend get-payment-status action
 
   U->>FE: Open /orders or /orders/:orderId
-  FE->>HWS: Start GraphQL subscription
-  HWS->>DB: stream order/order_item/address rows by user
-  HWS-->>FE: realtime updates
+  FE->>HWS: start subscription
+  HWS->>DB: stream rows by user
+  HWS-->>FE: live updates
 
-  FE->>BE: (when needed) getPaymentStatus(orderId)
-  BE->>DB: read payments
-  BE-->>FE: status enrichment
+  FE->>BE: optional status reconciliation
+  BE->>DB: read latest payment row
+  BE-->>FE: payment status
 ```

@@ -1,160 +1,63 @@
-tech stack design
+# Internship Frontend
 
-1.) postgresql -> single DB
-2.) Hasura -> GraphQl Layer
-3.) Node backend -> business logic
-4.) Temporal -> orchestration
-5.) Docker -> local infra 
-(for scalable , efficient)
+Last updated: 2026-03-09
 
-🛒 E-Commerce Backend Architecture
-Modular Monolith + Temporal Orchestration
-📌 Project Overview
+## Stack
 
-This backend powers a full e-commerce workflow including:
+- React + TypeScript + Vite
+- Redux Toolkit
+- Apollo Client + GraphQL
+- Firebase Auth
+- Stripe Elements
 
-Product management
+## App Responsibilities
 
-Cart management
+- Authenticate users with Firebase and exchange token via Hasura action.
+- Query/mutate Hasura tables for products/cart/orders.
+- Trigger backend actions for order creation, payment intent, payment status, and email notifications.
+- Subscribe to realtime order updates.
 
-Order processing
+## Important Paths
 
-Inventory reservation
+- App bootstrap: `src/main.tsx`
+- Router: `src/app/router/appRouter.tsx`
+- Auth listener: `src/features/auth/authListener.ts`
+- Commerce API barrel: `src/features/products/hasuraCommerce.ts`
+- Commerce modules:
+  - `src/features/products/hasuraCommerce/products.ts`
+  - `src/features/products/hasuraCommerce/cart.ts`
+  - `src/features/products/hasuraCommerce/orders.ts`
+  - `src/features/products/hasuraCommerce/payments.ts`
+  - `src/features/products/hasuraCommerce/notifications.ts`
 
-Payment handling
+## Scripts
 
-Role-based access control (Admin/User)
-
-The system is designed using:
-
-PostgreSQL → Source of truth
-
-Hasura → GraphQL engine + RBAC + subscriptions
-
-Temporal → Durable workflow orchestration
-
-AWS Lambda → External integrations (Payment simulation)
-
-Docker → Local infrastructure setup
-```
-🏗 Architecture Overview
-Frontend (React)
-        ↓
-Hasura (GraphQL + RBAC)
-        ↓
-PostgreSQL (Primary Database)
-        ↓
-Hasura Action → AWS Lambda
-        ↓
-Temporal Workflow
-        ↓
-Temporal Worker (Activities)
-        ↓
-PostgreSQL
+```bash
+npm run dev
+npm run build
+npm run preview
+npm run lint
+npm run storybook
 ```
 
+## Environment Variables
 
-🛍 Product Management
+Typical variables used by the frontend:
 
-Products are initially seeded from DummyJSON.
+- `VITE_HASURA_URL`
+- `VITE_STRIPE_PUBLISHABLE_KEY`
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_APP_ID`
 
-After seeding:
+## Local Run
 
-PostgreSQL becomes the source of truth.
+```bash
+npm install
+npm run dev
+```
 
-Admin can:
+Frontend expects backend/Hasura services to be running and reachable.
 
-Increase stock
-
-Decrease stock
-
-Update price
-
-Add new products
-⏳ Order Processing Workflow (Temporal)
-Workflow: OrderWorkflow
-
-Steps:
-
-Create Order (PENDING)
-
-Reserve Inventory
-
-Process Payment
-
-If success → Confirm Order
-
-If failure → Release Inventory
-
-Inventory Reservation Logic
-
-Safe concurrency:
-
-UPDATE products
-SET stock = stock - $quantity
-WHERE id = $productId
-AND stock >= $quantity;
-
-
-If rows affected = 0 → fail workflow.
-
-Saga Pattern Implementation
-
-If payment fails:
-
-Release reserved stock
-
-Update order to CANCELLED
-
-This ensures data consistency.
-
-🔄 Real-Time Order Updates
-
-Frontend subscribes using Hasura:
-
-subscription {
-  orders_by_pk(id: $orderId) {
-    status
-    payment_status
-  }
-}
-
-
-When workflow updates DB → UI updates automatically.
-
-⚙️ Docker Infrastructure
-
-Services:
-
-postgres
-
-hasura
-
-temporal server
-
-temporal UI
-
-backend service
-
-lambda service
-
-This provides local production-like setup.
-
-📈 Scalability Strategy
-Horizontal Scaling
-
-Hasura replicas
-
-Temporal workers scale independently
-
-Lambda auto-scales
-
-PostgreSQL read replicas (future)
-
-Future Evolution Path
-
-Stage 1 → Modular Monolith
-Stage 2 → Scale Temporal workers
-Stage 3 → Extract inventory/payment into microservices if needed
-
-Architecture is designed to support evolution without major refactor
+When the frontend is served over `https`, configure `VITE_HASURA_URL` with an `https` URL in production.
