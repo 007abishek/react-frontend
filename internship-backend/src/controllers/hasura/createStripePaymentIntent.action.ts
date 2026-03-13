@@ -37,6 +37,10 @@ export const handleCreateStripePaymentIntentAction = async (req: Request, res: R
       res.status(404).json({ message });
       return;
     }
+    if (message === "Stripe is not configured. Set a valid STRIPE_SECRET_KEY in backend .env") {
+      res.status(400).json({ message });
+      return;
+    }
     if (message === "Payment already completed for this order") {
       res.status(409).json({ message });
       return;

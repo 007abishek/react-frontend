@@ -17,6 +17,49 @@ type BackendJwtPayload = {
   isGuest?: boolean;
 };
 
+type DecodedFirebaseToken = {
+  uid: string;
+  email: string | null;
+  providerId: string;
+};
+
+async function resolveFirebaseToken(firebaseIdToken: string): Promise<DecodedFirebaseToken> {
+  try {
+    const verified = await admin.auth().verifyIdToken(firebaseIdToken);
+    return {
+      uid: String(verified.uid),
+      email: verified.email ?? null,
+      providerId: verified.firebase?.sign_in_provider ?? "password",
+    };
+  } catch (error) {
+    if (process.env.NODE_ENV === "production") {
+      throw error;
+    }
+
+    // Local/dev fallback to keep auth flow working when Firebase admin creds are not configured.
+    const decoded = jwt.decode(firebaseIdToken) as
+      | {
+          uid?: string;
+          user_id?: string;
+          sub?: string;
+          email?: string | null;
+          firebase?: { sign_in_provider?: string };
+        }
+      | null;
+
+    const uid = decoded?.uid ?? decoded?.user_id ?? decoded?.sub;
+    if (!uid) {
+      throw new Error("Invalid firebase token payload");
+    }
+
+    return {
+      uid: String(uid),
+      email: decoded?.email ?? null,
+      providerId: decoded?.firebase?.sign_in_provider ?? "password",
+    };
+  }
+}
+
 export async function authenticateFirebaseLogin(firebaseIdToken: string): Promise<{
   token: string;
   hasuraToken: string;
@@ -28,8 +71,8 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
     isGuest: boolean;
   };
 }> {
-  const decoded = await admin.auth().verifyIdToken(firebaseIdToken);
-  const providerId = decoded.firebase?.sign_in_provider;
+  const decoded = await resolveFirebaseToken(firebaseIdToken);
+  const providerId = decoded.providerId;
   const providerMap: Record<string, string> = {
     "google.com": "google",
     "github.com": "github",
@@ -85,15 +128,23 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
       .returning("*");
     user = inserted[0];
   }
-  const token = signHasuraToken({
+  const token = jwt.sign(
+    {
+      userId: user.id,
+      uid: user.firebase_uid,
+      email: user.email,
+      provider: user.provider,
+      isGuest: user.is_guest,
+    },
+    process.env.JWT_SECRET as string,
+    { expiresIn: "7d" }
+  );
+
+  const hasuraToken = signHasuraToken({
     userId: user.id,
     uid: user.firebase_uid,
     isGuest: user.is_guest,
-    email: user.email,
-    provider: user.provider,
-    expiresIn: "7d",
   });
-  const hasuraToken = token;
 
   return {
     token,
@@ -109,15 +160,21 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
 }
 
 export function issueHasuraTokenFromBackendJwt(backendJwt: string): { token: string } {
-  const hasuraJwtSecret = process.env.HASURA_JWT_SECRET;
-  if (!hasuraJwtSecret) {
-    throw new Error("HASURA_JWT_SECRET is not configured");
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error("JWT_SECRET is not configured");
   }
 
-  const decoded = jwt.verify(backendJwt, hasuraJwtSecret) as BackendJwtPayload;
+  const decoded = jwt.verify(backendJwt, jwtSecret) as BackendJwtPayload;
   if (!decoded?.userId || !decoded?.uid) {
-    throw new Error("Invalid unified JWT");
+    throw new Error("Invalid backend JWT");
   }
 
-  return { token: backendJwt };
+  const token = signHasuraToken({
+    userId: Number(decoded.userId),
+    uid: String(decoded.uid),
+    isGuest: Boolean(decoded.isGuest),
+  });
+
+  return { token };
 }

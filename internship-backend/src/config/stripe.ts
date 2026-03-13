@@ -3,6 +3,9 @@ import Stripe from "stripe";
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY is not defined in environment variables");
 }
+if (!process.env.STRIPE_WEBHOOK_SECRET?.trim()) {
+  throw new Error("STRIPE_WEBHOOK_SECRET is not defined in environment variables");
+}
 
 // Initialize Stripe with your secret key
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
@@ -12,4 +15,4 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 // Export publishable key for frontend (if needed)
 export const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || "";
-export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
+export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET.trim();

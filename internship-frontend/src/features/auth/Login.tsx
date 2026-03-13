@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -73,7 +73,8 @@ export default function Login() {
         return "OAuth login failed. Try again.";
     }
   };
-
+  
+  //validation
   const getEmailFromCustomData = (customData: unknown): string | null => {
     if (!customData || typeof customData !== "object") return null;
     const email = (customData as { email?: unknown }).email;
@@ -224,11 +225,6 @@ export default function Login() {
     }
   };
 
-  const handleEmailSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void loginEmail();
-  };
-
   return (
     <AuthShell>
       <AuthCard
@@ -246,7 +242,6 @@ export default function Login() {
           </p>
         }
       >
-        <form onSubmit={handleEmailSubmit}>
         {/* Email Field */}
         <div className="mb-3">
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -328,7 +323,8 @@ export default function Login() {
 
         {/* Login Button */}
         <button
-          type="submit"
+          type="button"
+          onClick={loginEmail}
           disabled={loading}
           className="
             group relative w-full overflow-hidden
@@ -358,7 +354,6 @@ export default function Login() {
           </span>
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
         </button>
-        </form>
 
         {/* Divider */}
         <div className="my-5 flex items-center gap-3 text-xs font-medium text-slate-400">

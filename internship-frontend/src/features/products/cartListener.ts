@@ -2,6 +2,7 @@ import { createListenerMiddleware } from "@reduxjs/toolkit";
 import { saveCartForUser } from "../../utils/indexedDb";
 import type { RootState } from "../../app/store";
 import { syncCart } from "./hasuraCommerce";
+import { hasValidHasuraToken } from "../../utils/hasuraClient";
 
 export const cartListener = createListenerMiddleware();
 
@@ -18,7 +19,7 @@ cartListener.startListening({
     const user = state.auth.user;
     const items = state.cart.items;
 
-    if (!user?.uid || user.provider === "guest") return;
+    if (!user?.uid || user.provider === "guest" || !hasValidHasuraToken()) return;
 
     try {
       await syncCart(items);

@@ -43,7 +43,9 @@ function sqlNumber(value?: number | null): string {
 
 function sqlArrayText(values?: string[] | null): string {
   if (!values || values.length === 0) return "'{}'::text[]";
-  const escaped = values.map((v) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`);
+  const escaped = values.map((v) =>
+    `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/'/g, "''")}"`
+  );
   return `'{${
     escaped.join(",")
   }}'::text[]`;

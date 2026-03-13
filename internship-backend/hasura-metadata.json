@@ -284,6 +284,27 @@
             "table": { "schema": "public", "name": "products" },
             "select_permissions": [
               {
+                "role": "anonymous",
+                "permission": {
+                  "columns": [
+                    "id",
+                    "external_id",
+                    "title",
+                    "description",
+                    "price",
+                    "category",
+                    "thumbnail",
+                    "images",
+                    "rating",
+                    "stock",
+                    "brand",
+                    "created_at"
+                  ],
+                  "filter": {},
+                  "allow_aggregations": true
+                }
+              },
+              {
                 "role": "user",
                 "permission": {
                   "columns": [

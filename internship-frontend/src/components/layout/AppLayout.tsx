@@ -13,23 +13,23 @@ export default function AppLayout({ children }: Props) {
         min-h-screen
         flex flex-col
         relative
-        overflow-hidden
+        overflow-x-hidden
         bg-slate-50 dark:bg-slate-950
         text-slate-900 dark:text-slate-100
         transition-colors duration-500
       "
     >
       {/* ===== Animated Background Gradients ===== */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+      <div className="fixed inset-0 pointer-events-none overflow-x-hidden">
         {/* Light mode gradients */}
-        <div className="absolute -top-[40%] -left-[20%] w-[60%] h-[60%] rounded-full bg-gradient-to-br from-blue-200/40 via-purple-200/30 to-pink-200/40 blur-3xl animate-blob dark:opacity-0 transition-opacity duration-500" />
-        <div className="absolute top-[20%] -right-[20%] w-[50%] h-[50%] rounded-full bg-gradient-to-bl from-cyan-200/40 via-blue-200/30 to-purple-200/40 blur-3xl animate-blob animation-delay-2000 dark:opacity-0 transition-opacity duration-500" />
-        <div className="absolute -bottom-[20%] left-[20%] w-[55%] h-[55%] rounded-full bg-gradient-to-tr from-pink-200/40 via-purple-200/30 to-blue-200/40 blur-3xl animate-blob animation-delay-4000 dark:opacity-0 transition-opacity duration-500" />
+        <div className="absolute -top-[30%] sm:-top-[40%] -left-[30%] sm:-left-[20%] w-[120%] sm:w-[60%] h-[120%] sm:h-[60%] rounded-full bg-gradient-to-br from-blue-200/40 via-purple-200/30 to-pink-200/40 blur-3xl animate-blob dark:opacity-0 transition-opacity duration-500" />
+        <div className="absolute top-[10%]  sm:top-[20%] -right-[30%] sm:-right-[20%] w-[120%] sm:w-[50%] h-[120%] sm:h-[50%] rounded-full bg-gradient-to-bl from-cyan-200/40 via-blue-200/30 to-purple-200/40 blur-3xl animate-blob animation-delay-2000 dark:opacity-0 transition-opacity duration-500" />
+        <div className="absolute -bottom-[30%] sm:-bottom-[20%] left-[10%] sm:left-[20%] w-[120%] sm:w-[55%] h-[120%] sm:h-[55%] rounded-full bg-gradient-to-tr from-pink-200/40 via-purple-200/30 to-blue-200/40 blur-3xl animate-blob animation-delay-4000 dark:opacity-0 transition-opacity duration-500" />
         
         {/* Dark mode gradients */}
-        <div className="absolute -top-[40%] -left-[20%] w-[60%] h-[60%] rounded-full bg-gradient-to-br from-blue-500/20 via-purple-500/15 to-pink-500/20 blur-3xl animate-blob opacity-0 dark:opacity-100 transition-opacity duration-500" />
-        <div className="absolute top-[20%] -right-[20%] w-[50%] h-[50%] rounded-full bg-gradient-to-bl from-cyan-500/20 via-blue-500/15 to-purple-500/20 blur-3xl animate-blob animation-delay-2000 opacity-0 dark:opacity-100 transition-opacity duration-500" />
-        <div className="absolute -bottom-[20%] left-[20%] w-[55%] h-[55%] rounded-full bg-gradient-to-tr from-pink-500/20 via-purple-500/15 to-blue-500/20 blur-3xl animate-blob animation-delay-4000 opacity-0 dark:opacity-100 transition-opacity duration-500" />
+        <div className="absolute -top-[30%] sm:-top-[40%] -left-[30%] sm:-left-[20%] w-[120%] sm:w-[60%] h-[120%]  sm:h-[60%] rounded-full bg-gradient-to-br from-blue-500/20 via-purple-500/15 to-pink-500/20 blur-3xl animate-blob opacity-0 dark:opacity-100 transition-opacity duration-500" />
+        <div className="absolute top-[10%]  sm:top-[20%] -right-[30%] sm:-right-[20%] w-[120%] sm:w-[50%] h-[120%] sm:h-[50%] rounded-full bg-gradient-to-bl from-cyan-500/20 via-blue-500/15 to-purple-500/20 blur-3xl animate-blob animation-delay-2000 opacity-0 dark:opacity-100 transition-opacity duration-500" />
+        <div className="absolute -bottom-[30%] sm:-bottom-[20%] left-[10%] sm:left-[20%] w-[120%] sm:w-[55%] h-[120%] sm:h-[55%] rounded-full bg-gradient-to-tr from-pink-500/20 via-purple-500/15 to-blue-500/20 blur-3xl animate-blob animation-delay-4000 opacity-0 dark:opacity-100 transition-opacity duration-500" />
       </div>
 
       {/* ===== Noise texture overlay (optional subtle grain) ===== */}
@@ -51,9 +51,9 @@ export default function AppLayout({ children }: Props) {
           z-10
           mx-auto
           w-full
-          max-w-7xl
-          px-4 sm:px-6 lg:px-8
-          py-8 sm:py-12
+          max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-7xl
+          px-4 sm:px-6 md:px-8
+          py-6 sm:py-10 md:py-12
         "
       >
         {children}

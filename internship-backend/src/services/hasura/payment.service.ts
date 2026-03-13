@@ -12,6 +12,13 @@ const TERMINAL_WORKFLOW_STATUSES = new Set([
   "CANCELLED",
 ]);
 
+function isStripeSecretConfigured(): boolean {
+  const key = String(process.env.STRIPE_SECRET_KEY ?? "").trim();
+  if (!key) return false;
+  if (key === "sk_live_or_test_replace_me") return false;
+  return key.startsWith("sk_test_") || key.startsWith("sk_live_");
+}
+
 async function reconcilePendingOrderForTerminalWorkflow(order: any, payment: any): Promise<void> {
   const orderStatus = String(order?.status ?? "").toLowerCase();
   if (orderStatus !== "pending") return;
@@ -83,6 +90,10 @@ export async function createStripeIntentForOrder(input: {
   amount: number;
   currency?: string;
 }): Promise<{ clientSecret: string | null; paymentIntentId: string; reused: boolean }> {
+  if (!isStripeSecretConfigured()) {
+    throw new Error("Stripe is not configured. Set a valid STRIPE_SECRET_KEY in backend .env");
+  }
+
   const currency = String(input.currency ?? "inr").toLowerCase();
   const requestedAmount = Number(input.amount);
 

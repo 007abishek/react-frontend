@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
-import helmet from "helmet";
+import helmet from "helmet";//http security headers
 import morgan from "morgan";
 import cron from "node-cron";
 
@@ -21,24 +21,12 @@ app.set("trust proxy", 1);
    MIDDLEWARE
 ============================================================ */
 
-app.use(
-  helmet({
-    // Allow OAuth/Firebase popup windows to communicate with opener safely.
-    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
-  })
-);
-
-const configuredFrontendOrigins = (
-  process.env.FRONTEND_ORIGINS || process.env.CLIENT_URL || ""
-)
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+app.use(helmet());
 
 const allowedOrigins = new Set([
   "http://localhost:5173",
   "http://localhost:5174",
-  ...configuredFrontendOrigins,
+  ...(process.env.FRONTEND_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? []),
 ]);
 
 app.use(
@@ -58,7 +46,7 @@ app.use(
     credentials: true,
   })
 );
-
+//payment endpoints onlywork withhttps
 const enforceHttpsForPayments = (
   req: Request,
   res: Response,
@@ -108,7 +96,7 @@ app.post(
 );
 
 app.use(express.json());
-app.use(morgan("dev"));
+app.use(morgan("dev"));//logging http requests
 
 /* ============================================================
    ROUTES

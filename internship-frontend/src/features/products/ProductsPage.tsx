@@ -14,8 +14,12 @@ import type { Product } from "./types";
 export default function ProductsPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { data = [], isLoading, isError } = useGetProductsQuery();
 
+  //Data fetching
+  const { data = [], isLoading, isError } = useGetProductsQuery();
+  
+
+  //accessing redux global state
   const { user } = useAppSelector((state) => state.auth);
   const isGuest = user?.provider === "guest";
 
@@ -98,19 +102,19 @@ export default function ProductsPage() {
 
   return (
     <AppLayout>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-4 sm:mb-6 flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
+          <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-2xl lg:text-3xl">
             Products
           </h1>
-          <p className="mt-1 text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-sm sm:text-base text-slate-500 dark:text-slate-400">
             Browse products and add them to your cart
           </p>
         </div>
         <button
           type="button"
           onClick={() => navigate("/orders")}
-          className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 sm:w-auto"
+          className="w-full rounded-lg bg-slate-900 px-4 py-2 sm:px-5 sm:py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 sm:w-auto"
         >
           Order History
         </button>
@@ -136,7 +140,7 @@ export default function ProductsPage() {
               setSearchQuery(event.target.value);
             }}
             placeholder="Search by name, category, or description..."
-            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-zinc-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-900"
+            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 sm:py-3 pr-10 text-xs sm:text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-700 dark:bg-zinc-900 dark:text-white dark:focus:border-blue-400 dark:focus:ring-blue-900"
           />
           {searchQuery && (
             <button
@@ -173,7 +177,7 @@ export default function ProductsPage() {
       {showPrompt && <SignupPrompt message="Sign up to add products to your cart" />}
 
       {addedMessage && (
-        <div className="fixed left-1/2 top-20 z-50 -translate-x-1/2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
+        <div className="fixed left-1/2 top-16 sm:top-20 z-50 -translate-x-1/2 rounded-lg bg-emerald-600 px-3 py-2 sm:px-4 sm:py-3 text-sm font-medium text-white shadow-lg">
           {addedMessage}
         </div>
       )}

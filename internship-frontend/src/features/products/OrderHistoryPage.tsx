@@ -75,8 +75,8 @@ export default function OrderHistoryPage() {
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-4xl px-2 py-6 sm:px-4 sm:py-8">
-        <div className="mb-6 flex items-center gap-3">
+      <div className="mx-auto max-w-4xl px-3 py-5 sm:px-4 sm:py-6 md:px-6 lg:px-8">
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between ">
           <h1 className="text-2xl font-bold text-white sm:text-3xl">Order History</h1>
           {status === "live" && (
             <span className="flex items-center gap-1.5 rounded-full bg-emerald-600/20 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/30">
@@ -90,12 +90,12 @@ export default function OrderHistoryPage() {
         </div>
 
         {orders.length === 0 ? (
-          <div className="text-center py-12 bg-slate-800/50 rounded-2xl border border-slate-700">
+          <div className="p-4 sm:p-5 md:p-6 bg-slate-800/50 backdrop-blur-lg rounded-2xl border border-slate-700">
             <p className="text-gray-400 mb-4">No orders yet</p>
             <button
               type="button"
               onClick={() => navigate("/products")}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition"
             >
               Start Shopping
             </button>
@@ -111,7 +111,7 @@ export default function OrderHistoryPage() {
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-gray-400 text-sm">Order ID</p>
-                    <p className="break-all font-mono font-semibold text-white">{order.order_id}</p>
+                    <p className="break-all font-mono text-sm sm:text-base font-semibold text-white">{order.order_id}</p>
                   </div>
                   <div className="sm:text-right">
                     <p className="text-gray-400 text-sm mb-1">Status</p>
@@ -137,7 +137,7 @@ export default function OrderHistoryPage() {
                       </p>
                     </div>
                     <div className="sm:text-right">
-                      <p className="text-xl font-bold text-blue-400">Rs {Number(order.total).toFixed(2)}</p>
+                      <p className="text-lg sm:text-xl font-bold text-blue-400">Rs {Number(order.total).toFixed(2)}</p>
                       <p className="text-gray-400 text-sm">{getPaymentLabel(order.payment_method)}</p>
                     </div>
                   </div>
@@ -155,7 +155,7 @@ export default function OrderHistoryPage() {
                     type="button"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800"
+                    className="rounded-md border border-slate-600 px-4 py-2 sm:px-3 sm:py-1.5 text-sm text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800"
                   >
                     Previous
                   </button>
@@ -163,7 +163,7 @@ export default function OrderHistoryPage() {
                     type="button"
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800"
+                    className="rounded-md border border-slate-600 px-4 py-2 sm:px-3 sm:py-1.5 text-sm text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800"
                   >
                     Next
                   </button>

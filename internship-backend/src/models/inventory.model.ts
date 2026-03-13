@@ -40,7 +40,9 @@ const checkAvailability = async (
     reserved,
   };
 };
-
+//lock product rows
+//check available inventory
+//create temporary reservations
 const reserve = async (
   userId: number,
   items: { productId: number; quantity: number }[],
@@ -56,7 +58,7 @@ const reserve = async (
         (requestedByProduct.get(item.productId) ?? 0) + item.quantity
       );
     }
-
+    //row level locking
     const lockedProducts = await trx("products")
       .select("id", "stock")
       .whereIn("id", productIds)
@@ -111,7 +113,7 @@ const reserve = async (
     return { success: true, reservations: rows };
   });
 };
-
+//after payment succeeds
 const confirm = async (
   reservationIds: number[]
 ): Promise<{ success: boolean; error?: string }> => {
@@ -167,7 +169,7 @@ const confirm = async (
     return { success: true };
   });
 };
-
+//cancel reservation
 const release = async (
   reservationIds: number[],
   reason: "expired" | "cancelled" = "cancelled"

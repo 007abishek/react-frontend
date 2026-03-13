@@ -1,10 +1,19 @@
 import InventoryModel from "../../models/inventory.model";
 import OrderModel from "../../models/order.model";
 import PaymentModel from "../../models/payment.model";
+import StripeWebhookEventModel, {
+  beginWebhookEventProcessing,
+} from "../../models/stripeWebhookEvent.model";
 import type Stripe from "stripe";
 
 export async function processStripeWebhookEvent(event: Stripe.Event): Promise<void> {
-  switch (event.type) {
+  const gate = await beginWebhookEventProcessing(event.id, event.type);
+  if (gate !== "start") {
+    return;
+  }
+
+  try {
+    switch (event.type) {
     case "payment_intent.succeeded": {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
@@ -28,14 +37,14 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<vo
       }
 
       console.log(`Payment succeeded: ${paymentIntent.id}`);
-      return;
+      break;
     }
 
     case "payment_intent.payment_failed": {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       await PaymentModel.updateStatus(paymentIntent.id, "failed");
       console.log(`Payment failed: ${paymentIntent.id}`);
-      return;
+      break;
     }
 
     case "payment_intent.canceled": {
@@ -59,11 +68,18 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<vo
       }
 
       console.log(`Payment cancelled: ${paymentIntent.id}`);
-      return;
+      break;
     }
 
     default:
       console.log(`Unhandled event type: ${event.type}`);
-      return;
+      break;
+    }
+
+    await StripeWebhookEventModel.markProcessed(event.id);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Webhook processing failed";
+    await StripeWebhookEventModel.markFailed(event.id, message);
+    throw error;
   }
 }

@@ -93,7 +93,7 @@ export default function OrderDetailPage() {
   if (!parsedOrderId.success) {
     return (
       <AppLayout>
-        <div className="mx-auto max-w-4xl p-6">
+        <div  className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
           <p className="mb-4 text-sm text-red-300">Invalid order id.</p>
           <button
             type="button"
@@ -126,7 +126,7 @@ export default function OrderDetailPage() {
         <button
           type="button"
           onClick={() => navigate("/orders")}
-          className="text-blue-400 mb-6 hover:underline"
+          className="text-blue-400 mb-6 hover:underline text-sm sm:text-base"
         >
           Back to Orders
         </button>
@@ -151,7 +151,7 @@ export default function OrderDetailPage() {
                 </span>
               )}
             </div>
-            <p className="break-all text-gray-400">Order ID: {detail.order.order_id}</p>
+            <p className="break-all text-gray-400 text-xs sm:text-sm">Order ID: {detail.order.order_id}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="text-xs text-slate-400">Order</span>
               <span
@@ -184,11 +184,11 @@ export default function OrderDetailPage() {
             <h3 className="text-white font-semibold mb-2">Order Items</h3>
             <div className="space-y-3">
               {detail.items.map((item) => (
-                <div key={item.id} className="flex flex-col gap-3 rounded-lg bg-slate-700/50 p-3 sm:flex-row sm:items-start sm:gap-4">
+                <div key={item.id} className="flex flex-col gap-3 rounded-lg bg-slate-700/50 p-3  sm:p-4 sm:flex-row sm:items-start sm:gap-4">
                   <img
                     src={item.thumbnail}
                     alt={item.title}
-                    className="w-16 h-16 object-contain bg-white rounded"
+                  className="w-14 h-14 sm:w-16 sm:h-16 object-contain bg-white rounded"
                   />
                   <div className="flex-1">
                     <p className="text-white text-sm">{item.title}</p>

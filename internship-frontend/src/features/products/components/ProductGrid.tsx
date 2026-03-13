@@ -14,14 +14,6 @@ export default function ProductGrid({
   onProductClick,
   onQuickAdd,
 }: Props) {
-  const formatPrice = (value: number) =>
-    new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-
   const { filter } = section;
 
   const filteredProducts = products.filter((product) => {
@@ -44,7 +36,7 @@ export default function ProductGrid({
 
   return (
     <div className="mb-12">
-      <h2 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">{section.title}</h2>
+      <h2 className="mb-4 text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{section.title}</h2>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {filteredProducts.map((product) => {
@@ -56,18 +48,18 @@ export default function ProductGrid({
             <div
               key={product.id}
               onClick={() => onProductClick(product.id)}
-              className="group cursor-pointer rounded-2xl bg-white p-4 shadow-sm hover:shadow-xl dark:bg-zinc-900"
+              className="group cursor-pointer rounded-2xl bg-white p-3 sm:p-4 shadow-sm hover:shadow-xl dark:bg-zinc-900 transition"
             >
-              <div className="flex h-44 items-center justify-center rounded-xl bg-slate-50 dark:bg-zinc-800">
-                <img src={product.thumbnail} alt={product.title} className="h-36 object-contain" />
+              <div className="flex h-36 sm:h-40 md:h-44 items-center justify-center rounded-xl bg-slate-50 dark:bg-zinc-800">
+                <img src={product.thumbnail} alt={product.title} className="h-28 sm:h-32 md:h-36 object-contain" />
               </div>
 
-              <h3 className="mt-4 line-clamp-2 text-sm font-medium text-gray-900 dark:text-white">
+              <h3 className="mt-3 sm:mt-4 line-clamp-2 text-xs sm:text-sm font-medium text-gray-900 dark:text-white">
                 {product.title}
               </h3>
 
-              <p className="mt-2 font-semibold text-gray-900 dark:text-white">
-                {formatPrice(Number(product.price ?? 0))}
+              <p className="mt-2 text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                ₹ {Number(product.price).toFixed(2)}
               </p>
 
               {isOutOfStock && <p className="mt-2 text-sm font-semibold text-red-500">Out of stock</p>}
@@ -82,7 +74,7 @@ export default function ProductGrid({
                   onQuickAdd(e, product);
                 }}
                 disabled={isOutOfStock}
-                className="mt-4 w-full rounded-md bg-blue-600 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-500 disabled:hover:bg-slate-500"
+                className="mt-3 sm:mt-4  w-full rounded-md bg-blue-600 py-2.5 sm:py-2 text-sm sm:text-base  text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-500 disabled:hover:bg-slate-500"
               >
                 {isOutOfStock ? "Out of Stock" : "Add to Cart"}
               </button>
@@ -93,4 +85,3 @@ export default function ProductGrid({
     </div>
   );
 }
-

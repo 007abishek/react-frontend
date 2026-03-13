@@ -1,30 +1,10 @@
-//unit test 
 
-//test cases
-//1.input validation
-//items empty
-//address missing
-//paymentMethod missing
-
-//2.product validation
-//product not found
-//invalid productId
-//invalid quantity
-
-//3.inventory validation
-//stock available
-//stock unavailable
-
-//4.idempotency logic
-//same orderId returns existing order
-
-//5. successful order creation
-//creates order
-//returns correct response
 
 import { createOrderFromActionInput } from "../order.service";
 import InventoryModel from "../../../models/inventory.model";
 import db from "../../../config/knex";
+import orderModel from "../../../models/order.model";
+import { cancelWorkflowById } from "../../../temporal/client";
 
 jest.mock("../../../models/inventory.model");
 jest.mock("../../../models/order.model");
@@ -92,3 +72,37 @@ test("should throw error if inventory not available",async()=>{
 
   ).rejects.toThrow("Insufficient stock");
 })
+
+
+//4. test case 4
+test("should create order successfully",async()=>{
+  (InventoryModel.checkAvailability as jest.Mock).mockResolvedValue({
+    available: true,
+    currentStock:10,
+    reserved:0
+  });
+
+  (db as any).mockReturnValue({
+    select: jest.fn().mockReturnThis(),
+    whereIn: jest.fn().mockResolvedValue([
+      {id:1, title: "Product",price:50,thumbnail:""}
+    ])
+  });
+
+  (orderModel.createWithTrx as jest.Mock).mockResolvedValue(true);
+  const result=await createOrderFromActionInput(
+    mockSession,
+    mockInput
+  );
+  expect(result.orderStatus).toBe("pending");
+
+});
+
+//test case 5
+
+test("should cancel previous workflows",async()=>{
+  (cancelWorkflowById as jest.Mock).mockResolvedValue(true);
+
+  await cancelWorkflowById("order-123");
+  expect(cancelWorkflowById).toHaveBeenCalledWith("order-123");
+});

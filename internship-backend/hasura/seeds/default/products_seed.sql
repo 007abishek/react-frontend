@@ -986,7 +986,7 @@ INSERT INTO products (
   89.99,
   'fragrances',
   'https://cdn.dummyjson.com/product-images/fragrances/dior-j''adore/thumbnail.webp',
-  '{"https://cdn.dummyjson.com/product-images/fragrances/dior-j'adore/1.webp","https://cdn.dummyjson.com/product-images/fragrances/dior-j'adore/2.webp","https://cdn.dummyjson.com/product-images/fragrances/dior-j'adore/3.webp"}'::text[],
+  '{"https://cdn.dummyjson.com/product-images/fragrances/dior-j''adore/1.webp","https://cdn.dummyjson.com/product-images/fragrances/dior-j''adore/2.webp","https://cdn.dummyjson.com/product-images/fragrances/dior-j''adore/3.webp"}'::text[],
   3.8,
   98,
   'Dior'

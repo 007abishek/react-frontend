@@ -118,8 +118,6 @@ export async function createOrderViaAction(input: CheckoutOrderInput): Promise<{
     {
       items: input.items.map((item) => ({
         productId: item.id,
-        title: item.title,
-        price: item.price,
         quantity: item.quantity,
       })),
       address: input.address,

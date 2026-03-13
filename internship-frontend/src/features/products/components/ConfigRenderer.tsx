@@ -28,12 +28,22 @@ export default function ConfigRenderer({
   switch (section.type) {
     case "productGrid":
       return (
-        <ProductGrid
-          section={section}
-          products={products}
-          onProductClick={onProductClick}
-          onQuickAdd={onQuickAdd}
-        />
+        <section
+          className="
+            mb-8 
+            sm:mb-10 
+            lg:mb-12
+            px-2 
+            sm:px-0
+          "
+        >
+          <ProductGrid
+            section={section}
+            products={products}
+            onProductClick={onProductClick}
+            onQuickAdd={onQuickAdd}
+          />
+        </section>
       );
 
     default:
@@ -41,4 +51,3 @@ export default function ConfigRenderer({
       return null;
   }
 }
-

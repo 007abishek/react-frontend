@@ -2,7 +2,9 @@ param(
   [string]$HasuraUrl = "http://localhost:8080",
   [string]$AdminSecret = "hasura_admin_secret_123",
   [string]$MetadataPath = ".\hasura-metadata.json",
-  [string]$SeedPath = ".\hasura\seeds\default\products_seed.sql"
+  [string]$SeedPath = ".\hasura\seeds\default\products_seed.sql",
+  [int]$HealthRetries = 30,
+  [int]$HealthRetryDelaySec = 3
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,9 +49,26 @@ function Invoke-HasuraV2Query {
 }
 
 Write-Host "Checking Hasura health..."
-$health = Invoke-WebRequest -UseBasicParsing -Uri "$HasuraUrl/healthz" -TimeoutSec 5
-if ($health.StatusCode -ne 200) {
-  throw "Hasura health check failed with status $($health.StatusCode)"
+$health = $null
+for ($attempt = 1; $attempt -le $HealthRetries; $attempt++) {
+  try {
+    $health = Invoke-WebRequest -UseBasicParsing -Uri "$HasuraUrl/healthz" -TimeoutSec 5
+    if ($health.StatusCode -eq 200) {
+      break
+    }
+    Write-Host "Hasura health attempt $attempt/$HealthRetries returned status $($health.StatusCode). Retrying in $HealthRetryDelaySec sec..."
+  } catch {
+    $msg = $_.Exception.Message
+    Write-Host "Hasura health attempt $attempt/$HealthRetries failed: $msg"
+  }
+
+  if ($attempt -lt $HealthRetries) {
+    Start-Sleep -Seconds $HealthRetryDelaySec
+  }
+}
+
+if (-not $health -or $health.StatusCode -ne 200) {
+  throw "Hasura health check failed after $HealthRetries attempts. Check 'docker compose logs hasura' for root cause."
 }
 Write-Host "Hasura is healthy."
 
@@ -68,15 +87,12 @@ Write-Host "Metadata apply succeeded."
 if (Test-Path $SeedPath) {
   Write-Host "Applying seed SQL from $SeedPath ..."
   $seedSql = Get-Content -Raw $SeedPath
-  $seedBody = @{
-    type = "run_sql"
-    args = @{
-      source = "default"
-      sql = $seedSql
-      cascade = $false
-      read_only = $false
-    }
-  } | ConvertTo-Json -Depth 10
+  # Avoid ConvertTo-Json OOM/StackOverflow issues with large multiline SQL payloads.
+  $escapedSql = $seedSql.Replace("\", "\\").Replace('"', '\"').Replace("`r", "").Replace("`n", "\n")
+
+  $seedBody = '{"type":"run_sql","args":{"source":"default","sql":"' +
+    $escapedSql +
+    '","cascade":false,"read_only":false}}'
 
   $seedResult = Invoke-HasuraV2Query -Body $seedBody
   if ($seedResult.result_type -ne "CommandOk") {

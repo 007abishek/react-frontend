@@ -1,10 +1,9 @@
 # Talview Internship Monorepo
 
-Last updated: 2026-03-09
+
 
 ## Overview
 
-This repo contains two apps:
 
 - `internship-frontend`: React client (Firebase auth, Hasura GraphQL, Stripe Elements)
 - `internship-backend`: Express backend (Hasura actions/events, Stripe webhook, Temporal workflows)
@@ -23,8 +22,7 @@ The backend intentionally uses a feature-oriented model layer (old structure):
 - `src/models/order.model.ts`
 - `src/models/payment.model.ts`
 - `src/models/checkoutIdempotency.model.ts`
-
-This is valid for current project scope.
+.
 
 ## Key Documentation Files
 

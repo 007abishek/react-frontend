@@ -39,7 +39,7 @@ export interface CreateOrderInput {
   subtotal: number;
   total: number;
 }
-
+//transaction used( all succeed or all rollback)
 const create = async (input: CreateOrderInput): Promise<OrderRow> =>
   createWithTrx(input);
 

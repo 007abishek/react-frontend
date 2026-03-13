@@ -87,6 +87,24 @@ const COMMON_CITIES = [
 
 
 function getErrorMessage(err: unknown): string {
+  type MaybeGraphQLError = {
+    graphQLErrors?: Array<{
+      message?: string;
+      extensions?: {
+        internal?: {
+          response?: {
+            body?: { message?: string };
+          };
+        };
+      };
+    }>;
+  };
+  const graphQLErrors = (err as MaybeGraphQLError)?.graphQLErrors;
+  const internalMessage = graphQLErrors?.[0]?.extensions?.internal?.response?.body?.message;
+  if (internalMessage && String(internalMessage).trim()) {
+    return String(internalMessage).trim();
+  }
+
   if (err instanceof Error && err.message.trim()) {
     return err.message;
   }

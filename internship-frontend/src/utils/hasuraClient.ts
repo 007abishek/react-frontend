@@ -19,24 +19,43 @@ type SubscriptionMessage<T> = {
 };
 
 export function setHasuraToken(token: string): void {
-  if (!token) {
+  if (!token || !isLikelyJwt(token)) {
     throw new Error("Hasura token missing in response");
   }
   localStorage.setItem(HASURA_TOKEN_KEY, token);
   localStorage.removeItem("hasura_jwt");
 }
 
-export async function getHasuraToken(): Promise<string> {
+export function hasValidHasuraToken(): boolean {
+  const token = localStorage.getItem(HASURA_TOKEN_KEY) ?? localStorage.getItem("hasura_jwt");
+  return Boolean(token && isLikelyJwt(token));
+}
+
+function readStoredHasuraToken(): string | null {
   const existing = localStorage.getItem(HASURA_TOKEN_KEY);
-  if (existing) return existing;
+  if (existing) {
+    if (isLikelyJwt(existing)) return existing;
+    clearHasuraToken();
+  }
 
   // Backward compatibility for older sessions where token was stored separately.
   const legacyHasuraToken = localStorage.getItem("hasura_jwt");
   if (legacyHasuraToken) {
+    if (!isLikelyJwt(legacyHasuraToken)) {
+      clearHasuraToken();
+      return null;
+    }
     localStorage.setItem(HASURA_TOKEN_KEY, legacyHasuraToken);
     localStorage.removeItem("hasura_jwt");
     return legacyHasuraToken;
   }
+
+  return null;
+}
+
+export async function getHasuraToken(): Promise<string> {
+  const token = readStoredHasuraToken();
+  if (token) return token;
 
   throw new Error("Missing JWT. Please login again.");
 }
@@ -50,9 +69,13 @@ export async function hasuraRequest<T>(
   query: string,
   variables?: Record<string, unknown>
 ): Promise<T> {
-  const token = await getHasuraToken();
   const document = gql(query);
   const operationType = getOperationType(query);
+  if (operationType !== "query" && operationType !== "mutation") {
+    throw new Error("hasuraRequest supports only query and mutation operations");
+  }
+
+  const token = operationType === "mutation" ? await getHasuraToken() : readStoredHasuraToken();
 
   const run = async () => {
     if (operationType === "mutation") {
@@ -71,19 +94,17 @@ export async function hasuraRequest<T>(
       return result.data;
     }
 
-    if (operationType !== "query") {
-      throw new Error("hasuraRequest supports only query and mutation operations");
-    }
-
     const result = await apolloClient.query<T>({
       query: document,
       variables,
       fetchPolicy: "no-cache",
-      context: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
+      context: token
+        ? {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        : undefined,
     });
 
     if (!result.data) {
@@ -99,6 +120,10 @@ async function runWithSingleRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (error) {
+    if (isInvalidJwtError(error)) {
+      clearHasuraToken();
+      return fn();
+    }
     if (!isTransientNetworkError(error)) {
       throw error;
     }
@@ -106,6 +131,10 @@ async function runWithSingleRetry<T>(fn: () => Promise<T>): Promise<T> {
     await new Promise((resolve) => window.setTimeout(resolve, 250));
     return fn();
   }
+}
+
+function isLikelyJwt(token: string): boolean {
+  return token.split(".").length === 3;
 }
 
 function isTransientNetworkError(error: unknown): boolean {
@@ -119,6 +148,19 @@ function isTransientNetworkError(error: unknown): boolean {
     normalized.includes("networkerror") ||
     normalized.includes("econnreset") ||
     normalized.includes("connection reset")
+  );
+}
+
+function isInvalidJwtError(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String((error as { message?: unknown })?.message ?? "");
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("could not verify jwt") ||
+    normalized.includes("invalid number of parts") ||
+    normalized.includes("jwt")
   );
 }
 

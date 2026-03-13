@@ -7,12 +7,12 @@ export default defineConfig({
     fixturesFolder: "fixtures",
     supportFile: "support/e2e.ts",
   },
-  component: {
-    specPattern: "component/**/*.cy.{js,jsx,ts,tsx}",
-    supportFile: "support/component.ts",
-    devServer: {
-      framework: "react",
-      bundler: "vite",
+  component:{
+    specPattern:"cypress/component/**/*.cy.{ts.tsx}",
+    supportFile:"cypress/support/component.ts",
+    devServer:{
+      framework:"react",
+      bundler:"vite",
     },
   },
 });

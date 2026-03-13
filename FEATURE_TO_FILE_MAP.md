@@ -47,7 +47,7 @@ Backend:
 
 - Product list page: `internship-frontend/src/features/products/ProductsPage.tsx`
 - Product detail page: `internship-frontend/src/features/products/ProductDetailPage.tsx`
-- Product data hooks (custom query-style hooks over Hasura/Apollo): `internship-frontend/src/features/products/productApi.ts`
+- RTK Query adapter: `internship-frontend/src/features/products/productApi.ts`
 
 Hasura metadata:
 
