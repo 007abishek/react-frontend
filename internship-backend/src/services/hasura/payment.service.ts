@@ -12,6 +12,15 @@ const TERMINAL_WORKFLOW_STATUSES = new Set([
   "CANCELLED",
 ]);
 
+function isStripeCredentialError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("expired api key") ||
+    normalized.includes("invalid api key") ||
+    normalized.includes("no api key provided")
+  );
+}
+
 function isStripeSecretConfigured(): boolean {
   const key = String(process.env.STRIPE_SECRET_KEY ?? "").trim();
   if (!key) return false;
@@ -133,26 +142,38 @@ export async function createStripeIntentForOrder(input: {
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown error";
       if (message === "Payment already completed for this order") throw err;
+      if (isStripeCredentialError(message)) {
+        throw new Error("Stripe API key is invalid or expired. Update STRIPE_SECRET_KEY in backend .env");
+      }
       console.warn("createStripeIntentForOrder retrieve failed, creating new intent:", message);
     }
   }
 
-  const paymentIntent = await stripe.paymentIntents.create(
-    {
-      amount: Math.round(expectedAmount * 100),
-      currency,
-      metadata: {
-        orderId: order.order_id,
-        userId: String(input.userId),
+  let paymentIntent;
+  try {
+    paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: Math.round(expectedAmount * 100),
+        currency,
+        metadata: {
+          orderId: order.order_id,
+          userId: String(input.userId),
+        },
+        automatic_payment_methods: {
+          enabled: true,
+        },
       },
-      automatic_payment_methods: {
-        enabled: true,
-      },
-    },
-    {
-      idempotencyKey: `order:${order.order_id}:amount:${Math.round(expectedAmount * 100)}:currency:${currency}`,
+      {
+        idempotencyKey: `order:${order.order_id}:amount:${Math.round(expectedAmount * 100)}:currency:${currency}`,
+      }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Stripe payment intent creation failed";
+    if (isStripeCredentialError(message)) {
+      throw new Error("Stripe API key is invalid or expired. Update STRIPE_SECRET_KEY in backend .env");
     }
-  );
+    throw err;
+  }
 
   await PaymentModel.create({
     orderId: order.id,

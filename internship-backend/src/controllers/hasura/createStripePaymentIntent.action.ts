@@ -41,6 +41,10 @@ export const handleCreateStripePaymentIntentAction = async (req: Request, res: R
       res.status(400).json({ message });
       return;
     }
+    if (message === "Stripe API key is invalid or expired. Update STRIPE_SECRET_KEY in backend .env") {
+      res.status(400).json({ message });
+      return;
+    }
     if (message === "Payment already completed for this order") {
       res.status(409).json({ message });
       return;

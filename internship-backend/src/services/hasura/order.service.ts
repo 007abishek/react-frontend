@@ -4,6 +4,7 @@ import db from "../../config/knex";
 import { toPaymentStatus } from "../../shared/payments/paymentStatus";
 import { createHash } from "crypto";
 import { cancelWorkflowById } from "../../temporal/client";
+import type { Knex } from "knex";
 
 type SessionUser = {
   userId: number;
@@ -44,6 +45,18 @@ type CreateOrderActionResponse = {
 type CreateOrderTxResult = CreateOrderActionResponse & {
   cancelledOrderExternalIds?: string[];
 };
+
+let hasCheckoutIdempotencyTableCache: boolean | null = null;
+
+async function canUseCheckoutIdempotency(trx: Knex.Transaction): Promise<boolean> {
+  if (hasCheckoutIdempotencyTableCache !== null) {
+    return hasCheckoutIdempotencyTableCache;
+  }
+
+  const exists = await trx.schema.hasTable("checkout_idempotency");
+  hasCheckoutIdempotencyTableCache = exists;
+  return exists;
+}
 
 const buildCheckoutRequestHash = (params: {
   userId: number;
@@ -180,40 +193,44 @@ export async function createOrderFromActionInput(
   const idempotencyKey = `attempt:${finalOrderId}`;
 
   const result = await db.transaction(async (trx): Promise<CreateOrderTxResult> => {
-    const idempotentRecord = await trx("checkout_idempotency")
-      .select("order_external_id", "expires_at", "request_hash")
-      .where({
-        user_id: session.userId,
-        idempotency_key: idempotencyKey,
-      })
-      .first()
-      .forUpdate();
+    const supportsCheckoutIdempotency = await canUseCheckoutIdempotency(trx);
 
-    const hasValidIdempotencyWindow =
-      Boolean(idempotentRecord?.expires_at) &&
-      new Date(String(idempotentRecord.expires_at)).getTime() > Date.now();
+    if (supportsCheckoutIdempotency) {
+      const idempotentRecord = await trx("checkout_idempotency")
+        .select("order_external_id", "expires_at", "request_hash")
+        .where({
+          user_id: session.userId,
+          idempotency_key: idempotencyKey,
+        })
+        .first()
+        .forUpdate();
 
-    if (idempotentRecord?.order_external_id && hasValidIdempotencyWindow) {
-      if (String(idempotentRecord.request_hash ?? "") !== requestHash) {
-        throw new Error("Checkout attempt data changed for the same orderId");
-      }
+      const hasValidIdempotencyWindow =
+        Boolean(idempotentRecord?.expires_at) &&
+        new Date(String(idempotentRecord.expires_at)).getTime() > Date.now();
 
-      const existingOrder = await OrderModel.getByOrderId(
-        String(idempotentRecord.order_external_id),
-        session.userId
-      );
-      if (existingOrder && String(existingOrder.status).toLowerCase() !== "cancelled") {
-        return {
-          orderId: String(existingOrder.order_id),
-          orderDate: existingOrder.created_at
-            ? new Date(existingOrder.created_at).toISOString()
-            : (orderDate || new Date().toISOString()),
-          status: String(existingOrder.status ?? "pending"),
-          orderStatus: String(existingOrder.status ?? "pending"),
-          paymentStatus: toPaymentStatus(paymentMethod, "pending"),
-          paymentMethod,
-          total: Number(existingOrder.total ?? 0),
-        };
+      if (idempotentRecord?.order_external_id && hasValidIdempotencyWindow) {
+        if (String(idempotentRecord.request_hash ?? "") !== requestHash) {
+          throw new Error("Checkout attempt data changed for the same orderId");
+        }
+
+        const existingOrder = await OrderModel.getByOrderId(
+          String(idempotentRecord.order_external_id),
+          session.userId
+        );
+        if (existingOrder && String(existingOrder.status).toLowerCase() !== "cancelled") {
+          return {
+            orderId: String(existingOrder.order_id),
+            orderDate: existingOrder.created_at
+              ? new Date(existingOrder.created_at).toISOString()
+              : (orderDate || new Date().toISOString()),
+            status: String(existingOrder.status ?? "pending"),
+            orderStatus: String(existingOrder.status ?? "pending"),
+            paymentStatus: toPaymentStatus(paymentMethod, "pending"),
+            paymentMethod,
+            total: Number(existingOrder.total ?? 0),
+          };
+        }
       }
     }
 
@@ -286,21 +303,23 @@ export async function createOrderFromActionInput(
       trx
     );
 
-    await trx("checkout_idempotency")
-      .insert({
-        user_id: session.userId,
-        idempotency_key: idempotencyKey,
-        request_hash: requestHash,
-        order_external_id: finalOrderId,
-        expires_at: trx.raw("NOW() + INTERVAL '24 hours'"),
-      })
-      .onConflict(["user_id", "idempotency_key"])
-      .merge({
-        request_hash: requestHash,
-        order_external_id: finalOrderId,
-        expires_at: trx.raw("NOW() + INTERVAL '24 hours'"),
-        updated_at: trx.fn.now(),
-      });
+    if (supportsCheckoutIdempotency) {
+      await trx("checkout_idempotency")
+        .insert({
+          user_id: session.userId,
+          idempotency_key: idempotencyKey,
+          request_hash: requestHash,
+          order_external_id: finalOrderId,
+          expires_at: trx.raw("NOW() + INTERVAL '24 hours'"),
+        })
+        .onConflict(["user_id", "idempotency_key"])
+        .merge({
+          request_hash: requestHash,
+          order_external_id: finalOrderId,
+          expires_at: trx.raw("NOW() + INTERVAL '24 hours'"),
+          updated_at: trx.fn.now(),
+        });
+    }
 
     await trx("cart_items")
       .where({ user_id: session.userId })
