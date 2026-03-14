@@ -3,13 +3,13 @@ import type { PayloadAction } from "@reduxjs/toolkit";
 
 /* ---------------- USER MODEL ---------------- */
 
-export type AuthProvider =
+export type AuthProvider =   //union type 
   | "password"
   | "google"
   | "github"
   | "guest";
 
-export interface AuthUser {
+export interface AuthUser { //shape of user object in authentication
   uid: string;
   email: string | null;
   provider: AuthProvider;
@@ -45,6 +45,8 @@ const authSlice = createSlice({
       state.loading = false;
     },
 
+
+  
     /* 🚪 User logged out or auth invalid */
     logout: (state) => {
       state.user = null;

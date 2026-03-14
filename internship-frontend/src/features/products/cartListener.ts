@@ -2,10 +2,9 @@ import { createListenerMiddleware } from "@reduxjs/toolkit";
 import { saveCartForUser } from "../../utils/indexedDb";
 import type { RootState } from "../../app/store";
 import { syncCart } from "./hasuraCommerce";
-import { hasValidHasuraToken } from "../../utils/hasuraClient";
 
 export const cartListener = createListenerMiddleware();
-
+//after component dispatch(action) listener middleware reacts and run side effect and reducer updates state
 cartListener.startListening({
   predicate: (_action, currentState, previousState) => {
     const current = currentState as RootState;
@@ -19,7 +18,7 @@ cartListener.startListening({
     const user = state.auth.user;
     const items = state.cart.items;
 
-    if (!user?.uid || user.provider === "guest" || !hasValidHasuraToken()) return;
+    if (!user?.uid || user.provider === "guest") return;
 
     try {
       await syncCart(items);

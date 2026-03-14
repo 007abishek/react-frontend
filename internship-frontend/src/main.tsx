@@ -8,13 +8,14 @@ import { loadStripe } from "@stripe/stripe-js";
 
 import App from "@/App";
 import { store } from "@/app/store";
+import ToastProvider from "@/components/toast/ToastProvider";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { startAuthListener } from "@/features/auth/authListener";
 import { apolloClient } from "@/utils/apolloClient";
 
 import "@/index.css";
 
-startAuthListener(store.dispatch);
+startAuthListener(store.dispatch);//restores the user session,tokens,and cart data automatically
 
 // const sentryEnabled =
 //   import.meta.env.VITE_SENTRY_ENABLED === "true" &&
@@ -26,8 +27,8 @@ if (sentryEnabled) {
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
     integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
-    tracesSampleRate: import.meta.env.DEV ? 1.0 : 0.2,
-    replaysSessionSampleRate: import.meta.env.DEV ? 1.0 : 0.1,
+    tracesSampleRate: import.meta.env?.DEV ? 1.0 : 0.2,
+    replaysSessionSampleRate: import.meta.env?.DEV ? 1.0 : 0.1,
     replaysOnErrorSampleRate: 1.0,
   });
 }
@@ -41,7 +42,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <ThemeProvider>
           <Elements stripe={stripePromise}>
             <Sentry.ErrorBoundary fallback={<p>Something went wrong.</p>}>
-              <App />
+              <ToastProvider>
+                <App />
+              </ToastProvider>
             </Sentry.ErrorBoundary>
           </Elements>
         </ThemeProvider>

@@ -2,6 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --color-primary: #4c1d95;
+    --color-accent-teal: #14b8a6;
+    --color-accent-cyan: #06b6d4;
+    --color-accent-purple: #7c3aed;
+
+    --bg-page: oklch(1 0 0);
+    --bg-surface: oklch(1 0 0);
+    --bg-elevated: oklch(1 0 0);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --border-subtle: #cbd5e1;
+  }
+
+  .dark {
+    --bg-page: oklch(0.12 0 0);
+    --bg-surface: oklch(0.18 0 0);
+    --bg-elevated: oklch(0.18 0 0);
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --border-subtle: #334155;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+  }
+}
+
 @layer utilities {
   @keyframes shimmer {
     100% {

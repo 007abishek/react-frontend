@@ -1,6 +1,6 @@
 # Sequence Diagrams
 
-Last updated: 2026-03-09
+Last updated: 2026-03-14
 
 ## 1. Login and Token Exchange
 
@@ -9,20 +9,82 @@ sequenceDiagram
   actor U as User
   participant FE as Frontend (React)
   participant FB as Firebase Auth
-  participant H as Hasura GraphQL
-  participant BE as Backend /hasura/actions
+  participant AL as Auth Listener (onAuthStateChanged)
+  participant H as Hasura GraphQL (/v1/graphql)
+  participant BE as Backend Hasura Action (authLogin)
   participant DB as PostgreSQL
 
   U->>FE: Login
-  FE->>FB: Firebase sign-in
-  FB-->>FE: Firebase ID token
-  FE->>H: mutation authLogin(firebaseIdToken)
+  FE->>FB: signInWithEmailAndPassword / signInWithPopup / signInWithRedirect
+  FB-->>AL: Auth state updated (firebaseUser)
+  AL->>FB: firebaseUser.getIdToken()
+  FB-->>AL: Firebase ID token
+  AL->>H: mutation authLogin(firebaseIdToken)
   H->>BE: POST /hasura/actions/auth-login
   BE->>FB: verifyIdToken
   BE->>DB: upsert users
-  BE-->>H: unified token + user
+  BE-->>H: hasuraToken + user
   H-->>FE: action response
-  FE->>FE: store jwt and set Hasura auth
+  FE->>FE: store hasuraToken in localStorage["jwt"]
+  FE->>FE: Apollo adds Authorization: Bearer <jwt>
+  FE->>H: query fetchCart (optional)
+```
+
+## 1.1 OAuth "Account Exists" Linking (Google/GitHub same email)
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant FE as Frontend (React)
+  participant FB as Firebase Auth
+  participant SS as sessionStorage
+
+  U->>FE: Click "Login with Google/GitHub"
+  FE->>FB: signInWithPopup(providerA)
+  FB-->>FE: Error auth/account-exists-with-different-credential (+ email)
+  FE->>FB: fetchSignInMethodsForEmail(email)
+  FB-->>FE: ["google.com" | "github.com" | "password" | ...]
+  FE->>FE: Build pending OAuth credential (providerA)
+  FE->>SS: Store pending_oauth_link (email + provider + tokens)
+  FE-->>U: Prompt: continue with existing method (providerB/password)
+
+  alt User signs in with providerB
+    U->>FE: Click providerB login
+    FE->>FB: signInWithPopup(providerB)
+    FB-->>FE: Signed in (currentUser)
+    FE->>SS: Restore pending_oauth_link (if needed)
+    FE->>FB: linkWithCredential(currentUser, pendingCredential)
+    FB-->>FE: Linked accounts
+    FE->>SS: Clear pending_oauth_link
+  else User signs in with password
+    U->>FE: Enter email + password
+    FE->>FB: signInWithEmailAndPassword
+    FB-->>FE: Signed in (currentUser)
+    FE->>SS: Restore pending_oauth_link (if needed)
+    FE->>FB: linkWithCredential(currentUser, pendingCredential)
+    FB-->>FE: Linked accounts
+    FE->>SS: Clear pending_oauth_link
+  end
+```
+
+## 1.2 Email Verification Gate (Password logins)
+
+```mermaid
+sequenceDiagram
+  participant AL as Auth Listener (onAuthStateChanged)
+  participant H as Hasura GraphQL (/v1/graphql)
+  participant BE as Backend Hasura Action (authLogin)
+  participant FB as Firebase Auth
+  participant FE as Frontend (React)
+
+  AL->>H: mutation authLogin(firebaseIdToken)
+  H->>BE: authLogin action
+  BE-->>H: user.emailVerified=false
+  H-->>AL: action response
+  AL->>AL: set localStorage["pending_otp_verification_email"]
+  AL->>FB: signOut()
+  FB-->>FE: Logged out
+  FE-->>FE: Show "Please verify the OTP..."
 ```
 
 ## 2. Product Browse and Cart Sync

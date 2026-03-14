@@ -9,6 +9,7 @@ interface UserRow {
   email: string | null;
   provider: string;
   is_guest: boolean;
+  email_verified?: boolean;
 }
 
 type BackendJwtPayload = {
@@ -69,6 +70,7 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
     email: string | null;
     provider: string;
     isGuest: boolean;
+    emailVerified: boolean;
   };
 }> {
   const decoded = await resolveFirebaseToken(firebaseIdToken);
@@ -81,6 +83,7 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
   };
   const provider = providerMap[providerId] || "password";
   const isGuest = providerId === "anonymous";
+  const autoVerifyEmail = isGuest || provider !== "password";
 
   // Resolve existing user by Firebase UID first, then by email to avoid
   // unique-email collisions when provider accounts are linked later.
@@ -103,6 +106,7 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
         email: normalizedEmail,
         provider,
         is_guest: isGuest,
+        ...(autoVerifyEmail ? { email_verified: true } : {}),
       })
       .returning("*");
     user = updated[0];
@@ -114,6 +118,7 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
         email: normalizedEmail,
         provider,
         is_guest: isGuest,
+        ...(autoVerifyEmail ? { email_verified: true } : {}),
       })
       .returning("*");
     user = updated[0];
@@ -124,6 +129,7 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
         email: normalizedEmail,
         provider,
         is_guest: isGuest,
+        ...(autoVerifyEmail ? { email_verified: true } : {}),
       })
       .returning("*");
     user = inserted[0];
@@ -155,6 +161,7 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
       email: user.email,
       provider: user.provider,
       isGuest: user.is_guest,
+      emailVerified: Boolean(user.email_verified),
     },
   };
 }

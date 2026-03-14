@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../../components/layout/AppLayout";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import SignupPrompt from "../../components/SignupPrompt";
+import { useToast } from "../../components/toast/useToast";
 import { addToCart, type CartItem } from "./cartSlice";
 import ProductGridSkeleton from "./components/ProductGridSkeleton";
 import ConfigRenderer from "./components/ConfigRenderer";
@@ -14,6 +15,7 @@ import type { Product } from "./types";
 export default function ProductsPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const toast = useToast();
 
   //Data fetching
   const { data = [], isLoading, isError } = useGetProductsQuery();
@@ -26,7 +28,6 @@ export default function ProductsPage() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchError, setSearchError] = useState("");
-  const [addedMessage, setAddedMessage] = useState("");
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredProducts = useMemo(() => {
@@ -67,18 +68,8 @@ export default function ProductsPage() {
     };
 
     dispatch(addToCart(cartItem));
-    setAddedMessage(`Added "${product.title}" to cart`);
+    toast.success(`Added "${product.title}" to cart`, "Added to cart");
   };
-
-  useEffect(() => {
-    if (!addedMessage) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setAddedMessage("");
-    }, 2000);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [addedMessage]);
 
   if (isLoading) {
     return (
@@ -175,12 +166,6 @@ export default function ProductsPage() {
       )}
 
       {showPrompt && <SignupPrompt message="Sign up to add products to your cart" />}
-
-      {addedMessage && (
-        <div className="fixed left-1/2 top-16 sm:top-20 z-50 -translate-x-1/2 rounded-lg bg-emerald-600 px-3 py-2 sm:px-4 sm:py-3 text-sm font-medium text-white shadow-lg">
-          {addedMessage}
-        </div>
-      )}
     </AppLayout>
   );
 }

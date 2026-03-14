@@ -31,7 +31,7 @@ function useGithubFetch<T>(url: string, options?: QueryOptions): QueryState<T> {
       return;
     }
 
-    const controller = new AbortController();
+    const controller = new AbortController();//this alllows cancelling requests
     setIsLoading(true);
     setError(undefined);
 

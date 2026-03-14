@@ -17,13 +17,10 @@ export default function AuthCard({
 }: AuthCardProps) {
   return (
     <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl shadow-2xl">
-      {/* Ambient glow */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-purple-500/10 to-pink-500/20 blur-2xl" />
-
-      <div className="relative z-10 rounded-2xl border border-white/20 bg-white/90 dark:bg-slate-900/90 dark:border-slate-700/50 p-6 backdrop-blur-xl sm:p-8">
+      <div className="relative z-10 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 sm:p-8 transition-colors duration-300">
 
         {/* Title */}
-        <h1 className="mb-6 text-center text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+        <h1 className="mb-6 text-center text-2xl sm:text-3xl font-bold text-[var(--text-primary)] tracking-tight">
           {title}
         </h1>
 

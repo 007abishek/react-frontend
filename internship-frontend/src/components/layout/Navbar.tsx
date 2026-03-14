@@ -1,11 +1,11 @@
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { logout } from "../../features/auth/authSlice";
 import { signOut } from "firebase/auth";
 import { auth } from "../../firebase/config";
 import AvatarMenu from "../AvatarMenu";
 import ThemeToggle from "../ThemeToggle";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { selectCartCount } from "../../features/products/cartSelectors";
 
 export default function Navbar() {
@@ -20,7 +20,6 @@ export default function Navbar() {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  // Lock body scroll when mobile menu is open
   useEffect(() => {
     if (mobileOpen) {
       document.body.style.overflow = "hidden";
@@ -61,79 +60,55 @@ export default function Navbar() {
   return (
     <>
       <nav
-        className="
-          sticky top-0 z-50
-          flex items-center justify-between
-          px-4 sm:px-6 lg:px-8 py-3 sm:py-4
-          bg-white/80 dark:bg-slate-900/80
-          backdrop-blur-xl
-          border-b border-slate-200/50 dark:border-slate-800/50
-          shadow-sm shadow-black/5 dark:shadow-black/20
-          transition-colors duration-300
-        "
+        className="sticky top-0 z-50 flex items-center justify-between border-b border-[color:var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-4 backdrop-blur-xl transition-colors duration-300 sm:px-6 lg:px-10"
+        aria-label="Primary"
       >
-        {/* ===== LEFT: Hamburger (mobile) + Nav Links (desktop) ===== */}
-        <div className="flex items-center gap-1 sm:gap-2">
-          {/* Mobile Hamburger */}
+        <div className="flex items-center gap-2 sm:gap-4">
           <button
             type="button"
-            aria-label="Open Menu"
+            aria-label="Open menu"
             onClick={() => setMobileOpen(true)}
-            className={`
-              md:hidden flex items-center justify-center h-10 w-10
-              rounded-xl text-slate-700 dark:text-slate-300
-              hover:bg-slate-100 dark:hover:bg-slate-800
-              transition-all duration-200
-              ${mobileOpen ? "opacity-0 pointer-events-none" : "opacity-100"}
-            `}
+            className={`md:hidden flex h-10 w-10 items-center justify-center rounded-xl text-[var(--text-primary)] transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+              mobileOpen ? "pointer-events-none opacity-0" : "opacity-100"
+            }`}
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
 
-          {/* Desktop Nav Links */}
-          <div className="hidden md:flex items-center gap-1 lg:gap-2">
+          <Link to="/" className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">
+            Portal
+          </Link>
+
+          <div className="ml-4 hidden items-center gap-1 md:flex">
             {navLinks.map(({ to, label }) => (
               <Link
                 key={to}
                 to={to}
-                className={`
-                  relative px-3 lg:px-4 py-2 rounded-xl
-                  font-medium text-sm
-                  transition-all duration-300
-                  ${
-                    isActive(to)
-                      ? "text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 shadow-sm"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                  }
-                `}
+                className={`relative rounded-lg px-3 py-2 text-xl font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                  isActive(to)
+                    ? "text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
               >
                 {label}
                 {isActive(to) && (
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full" />
+                  <span className="absolute -bottom-[15px] left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[var(--color-primary)]" />
                 )}
               </Link>
             ))}
           </div>
         </div>
 
-        {/* ===== RIGHT: Actions ===== */}
-        <div className="flex items-center gap-1 sm:gap-2 md:gap-3">
-          {/* Cart Icon */}
+        <div className="flex items-center gap-2 sm:gap-3">
           {showCart && (
             <Link
               to="/cart"
-              className="
-                relative flex items-center justify-center
-                h-10 w-10 rounded-xl
-                text-slate-700 dark:text-slate-300
-                hover:bg-slate-100 dark:hover:bg-slate-800
-                transition-all duration-300 hover:scale-105 active:scale-95
-              "
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-[var(--text-primary)] transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
               aria-label="Cart"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -142,68 +117,31 @@ export default function Navbar() {
                 />
               </svg>
               {cartCount > 0 && (
-                <span
-                  className="
-                    absolute -top-1 -right-1
-                    flex items-center justify-center
-                    h-5 w-5
-                    bg-gradient-to-br from-red-500 to-pink-500
-                    text-white text-xs font-bold
-                    rounded-full shadow-lg shadow-red-500/30
-                    animate-pulse
-                  "
-                >
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-accent-purple)] text-xs font-bold text-white">
                   {cartCount > 9 ? "9+" : cartCount}
                 </span>
               )}
             </Link>
           )}
 
-          {/* Theme Toggle */}
           <ThemeToggle />
-
-          {/* Avatar Menu */}
           <AvatarMenu email={user.email} />
 
-          {/* Logout Button — hidden on very small screens, shown sm+ */}
           <button
             type="button"
             onClick={handleLogout}
-            className="
-              group relative
-              hidden sm:inline-flex items-center
-              px-4 lg:px-5 py-2 rounded-xl
-              font-medium text-sm text-white
-              bg-gradient-to-r from-red-500 to-pink-500
-              hover:from-red-600 hover:to-pink-600
-              shadow-lg shadow-red-500/20
-              hover:shadow-xl hover:shadow-red-500/30
-              transition-all duration-300
-              hover:scale-105 active:scale-95
-              overflow-hidden
-            "
+            className="hidden items-center justify-center rounded-full bg-red-600 px-5 py-2.5 text-base font-semibold text-white transition-colors duration-200 hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 sm:inline-flex"
           >
-            <span className="relative z-10">Logout</span>
-            <div
-              className="
-                absolute inset-0
-                bg-gradient-to-r from-transparent via-white/20 to-transparent
-                transform -translate-x-full
-                group-hover:translate-x-full
-                transition-transform duration-700
-              "
-            />
+            Logout
           </button>
         </div>
       </nav>
 
-      {/* ===== Mobile Sidebar ===== */}
       <div
-        className={`fixed inset-0 z-[60] md:hidden transition-all duration-300 ${
+        className={`fixed inset-0 z-[60] transition-all duration-300 md:hidden ${
           mobileOpen ? "visible" : "invisible"
         }`}
       >
-        {/* Backdrop */}
         <div
           className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
             mobileOpen ? "opacity-100" : "opacity-0"
@@ -211,69 +149,47 @@ export default function Navbar() {
           onClick={() => setMobileOpen(false)}
         />
 
-        {/* Drawer */}
         <div
-          className={`
-            absolute left-0 top-0 h-full w-72 max-w-[85vw]
-            bg-white dark:bg-slate-900
-            shadow-2xl shadow-black/20
-            transform transition-transform duration-300 ease-out
-            flex flex-col
-            ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-          `}
+          className={`absolute left-0 top-0 flex h-full w-72 max-w-[85vw] flex-col bg-[var(--bg-elevated)] shadow-2xl shadow-black/20 transition-transform duration-300 ease-out ${
+            mobileOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
         >
-          {/* Drawer Header */}
-          <div className="flex justify-between items-center px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-            <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">
-              Menu
-            </span>
+          <div className="flex items-center justify-between border-b border-[color:var(--border-subtle)] px-5 py-4">
+            <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">Menu</span>
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
-              aria-label="Close Menu"
-              className="
-                flex items-center justify-center h-9 w-9 rounded-xl
-                text-slate-500 dark:text-slate-400
-                hover:bg-slate-100 dark:hover:bg-slate-800
-                transition-colors duration-200
-              "
+              aria-label="Close menu"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--text-secondary)] transition-colors duration-200 hover:bg-black/5 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
-          {/* User info */}
           {user?.email && (
-            <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider mb-0.5">
+            <div className="border-b border-[color:var(--border-subtle)] px-5 py-3">
+              <p className="mb-0.5 text-xs font-medium uppercase tracking-wider text-[var(--text-secondary)]">
                 Signed in as
               </p>
-              <p className="text-sm text-slate-700 dark:text-slate-300 font-medium truncate">
-                {user.email}
-              </p>
+              <p className="truncate text-sm font-medium text-[var(--text-primary)]">{user.email}</p>
             </div>
           )}
 
-          {/* Nav Links */}
-          <nav className="flex flex-col px-3 py-3 gap-1 flex-1 overflow-y-auto">
+          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-3" aria-label="Mobile">
             {navLinks.map(({ to, label }) => (
               <Link
                 key={to}
                 to={to}
-                className={`
-                  flex items-center gap-3 px-4 py-3 rounded-xl
-                  font-medium text-sm transition-all duration-200
-                  ${
-                    isActive(to)
-                      ? "bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 text-blue-600 dark:text-blue-400"
-                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                  }
-                `}
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                  isActive(to)
+                    ? "bg-[var(--color-primary)]/10 text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--text-primary)]"
+                }`}
               >
                 {isActive(to) && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex-shrink-0" />
+                  <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[var(--color-primary)]" />
                 )}
                 {label}
               </Link>
@@ -282,22 +198,18 @@ export default function Navbar() {
             {showCart && (
               <Link
                 to="/cart"
-                className={`
-                  flex items-center gap-3 px-4 py-3 rounded-xl
-                  font-medium text-sm transition-all duration-200
-                  ${
-                    location.pathname === "/cart"
-                      ? "bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 text-blue-600 dark:text-blue-400"
-                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                  }
-                `}
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
+                  location.pathname === "/cart"
+                    ? "bg-[var(--color-primary)]/10 text-[var(--text-primary)]"
+                    : "text-[var(--text-secondary)] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--text-primary)]"
+                }`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
                 Cart
                 {cartCount > 0 && (
-                  <span className="ml-auto flex items-center justify-center h-5 min-w-[20px] px-1 bg-gradient-to-br from-red-500 to-pink-500 text-white text-xs font-bold rounded-full">
+                  <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--color-accent-purple)] px-1 text-xs font-bold text-white">
                     {cartCount > 9 ? "9+" : cartCount}
                   </span>
                 )}
@@ -305,26 +217,16 @@ export default function Navbar() {
             )}
           </nav>
 
-          {/* Drawer Footer */}
-          <div className="px-3 py-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="border-t border-[color:var(--border-subtle)] px-3 py-4">
             <button
               type="button"
               onClick={() => {
                 setMobileOpen(false);
                 handleLogout();
               }}
-              className="
-                w-full flex items-center justify-center gap-2
-                px-4 py-3 rounded-xl
-                font-medium text-sm text-white
-                bg-gradient-to-r from-red-500 to-pink-500
-                hover:from-red-600 hover:to-pink-600
-                shadow-lg shadow-red-500/20
-                transition-all duration-300
-                active:scale-95
-              "
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-red-600 px-4 py-3 text-base font-semibold text-white transition-colors duration-200 hover:bg-red-700"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
               Logout

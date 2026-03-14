@@ -49,6 +49,21 @@
           "fields": [
             { "name": "backendJwt", "type": "String!" }
           ]
+        },
+        {
+          "name": "SendOtpInput",
+          "fields": [
+            { "name": "email", "type": "String!" },
+            { "name": "purpose", "type": "String" }
+          ]
+        },
+        {
+          "name": "VerifyOtpInput",
+          "fields": [
+            { "name": "email", "type": "String!" },
+            { "name": "otp", "type": "String!" },
+            { "name": "purpose", "type": "String" }
+          ]
         }
       ],
       "objects": [
@@ -88,7 +103,8 @@
             { "name": "uid", "type": "String!" },
             { "name": "email", "type": "String" },
             { "name": "provider", "type": "String!" },
-            { "name": "isGuest", "type": "Boolean!" }
+            { "name": "isGuest", "type": "Boolean!" },
+            { "name": "emailVerified", "type": "Boolean!" }
           ]
         },
         {
@@ -107,6 +123,21 @@
         },
         {
           "name": "InvokeEmailLambdaOutput",
+          "fields": [
+            { "name": "success", "type": "Boolean!" },
+            { "name": "message", "type": "String!" }
+          ]
+        },
+        {
+          "name": "SendOtpOutput",
+          "fields": [
+            { "name": "success", "type": "Boolean!" },
+            { "name": "message", "type": "String!" },
+            { "name": "expiresAt", "type": "String" }
+          ]
+        },
+        {
+          "name": "VerifyOtpOutput",
           "fields": [
             { "name": "success", "type": "Boolean!" },
             { "name": "message", "type": "String!" }
@@ -242,6 +273,59 @@
         "comment": "Fetch payment status for an order. Frontend → Hasura Action → Express handler → DB."
       },
       {
+        "name": "sendOtp",
+        "definition": {
+          "kind": "synchronous",
+          "handler": "{{ACTION_BASE_URL}}/hasura/actions/send-otp",
+          "forward_client_headers": false,
+          "headers": [
+            {
+              "name": "x-hasura-action-secret",
+              "value_from_env": "HASURA_ACTION_SECRET"
+            }
+          ],
+          "type": "mutation",
+          "arguments": [
+            { "name": "email", "type": "String!" },
+            { "name": "purpose", "type": "String" }
+          ],
+          "output_type": "SendOtpOutput"
+        },
+        "permissions": [
+          { "role": "anonymous" },
+          { "role": "guest" },
+          { "role": "user" }
+        ],
+        "comment": "Send an email OTP for verification."
+      },
+      {
+        "name": "verifyOtp",
+        "definition": {
+          "kind": "synchronous",
+          "handler": "{{ACTION_BASE_URL}}/hasura/actions/verify-otp",
+          "forward_client_headers": false,
+          "headers": [
+            {
+              "name": "x-hasura-action-secret",
+              "value_from_env": "HASURA_ACTION_SECRET"
+            }
+          ],
+          "type": "mutation",
+          "arguments": [
+            { "name": "email", "type": "String!" },
+            { "name": "otp", "type": "String!" },
+            { "name": "purpose", "type": "String" }
+          ],
+          "output_type": "VerifyOtpOutput"
+        },
+        "permissions": [
+          { "role": "anonymous" },
+          { "role": "guest" },
+          { "role": "user" }
+        ],
+        "comment": "Verify an email OTP."
+      },
+      {
         "name": "invokeEmailLambda",
         "definition": {
           "kind": "synchronous",
@@ -374,7 +458,7 @@
               {
                 "role": "user",
                 "permission": {
-                  "columns": ["id", "firebase_uid", "email", "provider", "is_guest", "created_at"],
+                  "columns": ["id", "firebase_uid", "email", "email_verified", "provider", "is_guest", "created_at"],
                   "filter": { "id": { "_eq": "X-Hasura-User-Id" } }
                 }
               }

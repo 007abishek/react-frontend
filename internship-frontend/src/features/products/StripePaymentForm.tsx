@@ -168,8 +168,8 @@ export default function StripePaymentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6 max-w-full md:max-w-lg lg:max-w-xl mx-aut0">
-      <div className="rounded-lg border border-slate-600 bg-slate-700 px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5">
+    <form onSubmit={handleSubmit} className="w-full space-y-4 sm:space-y-6">
+      <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-3 sm:px-4 sm:py-4 md:px-5 md:py-5">
         <PaymentElement
           options={{
             layout: "tabs",
@@ -180,25 +180,7 @@ export default function StripePaymentForm({
       <button
         type="submit"
         disabled={!stripe || isProcessing || (typeof amount === "number" && amount < MIN_CARD_PAYMENT_INR)}
-        className={`
-                    w-full
-                    rounded-lg
-                    py-3
-                    sm:py-3.5
-                    md:py-4
-                    text-sm
-                    sm:text-base
-                    font-semibold
-                    text-white
-                    bg-gradient-to-r from-green-600 to-emerald-600
-                    hover:from-green-700 hover:to-emerald-700
-                    shadow-lg
-                    transition-all
-                    active:scale-[0.98]
-                    disabled:cursor-not-allowed
-                    disabled:opacity-50
-                    ${isProcessing ? "cursor-wait" : ""}
-                  `}
+        className={`w-full rounded-lg bg-slate-900 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 sm:py-3.5 sm:text-base ${isProcessing ? "cursor-wait" : ""}`}
       >
         {isProcessing
           ? "Processing Payment..."

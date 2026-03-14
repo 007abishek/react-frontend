@@ -21,12 +21,18 @@ function formatMoney(value: number): string {
 }
 
 const ORDER_STATUS_STYLES: Record<string, string> = {
-  confirmed: "bg-green-600/20 text-green-400",
-  pending: "bg-yellow-600/20 text-yellow-400",
-  processing: "bg-blue-600/20 text-blue-400",
-  shipped: "bg-indigo-600/20 text-indigo-400",
-  delivered: "bg-green-600/20 text-green-400",
-  cancelled: "bg-red-600/20 text-red-400",
+  confirmed:
+    "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/30",
+  pending:
+    "bg-amber-50 text-amber-800 ring-1 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-400/30",
+  processing:
+    "bg-blue-50 text-blue-700 ring-1 ring-blue-600/20 dark:bg-blue-500/10 dark:text-blue-300 dark:ring-blue-400/30",
+  shipped:
+    "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600/20 dark:bg-indigo-500/10 dark:text-indigo-300 dark:ring-indigo-400/30",
+  delivered:
+    "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/30",
+  cancelled:
+    "bg-rose-50 text-rose-700 ring-1 ring-rose-600/20 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-400/30",
 };
 
 function getOrderStatusStyle(status: string): string {
@@ -93,12 +99,12 @@ export default function OrderDetailPage() {
   if (!parsedOrderId.success) {
     return (
       <AppLayout>
-        <div  className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-          <p className="mb-4 text-sm text-red-300">Invalid order id.</p>
+        <div className="mx-auto max-w-4xl">
+          <p className="mb-4 text-sm text-red-600 dark:text-red-400">Invalid order id.</p>
           <button
             type="button"
             onClick={() => navigate("/orders")}
-            className="text-blue-400 hover:underline"
+            className="text-sm font-semibold text-blue-600 transition hover:underline dark:text-blue-400"
           >
             Back to Orders
           </button>
@@ -110,7 +116,9 @@ export default function OrderDetailPage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-4xl mx-auto p-6 text-white">Loading order...</div>
+        <div className="mx-auto max-w-4xl py-16 text-center text-sm text-slate-600 dark:text-slate-300">
+          Loading order...
+        </div>
       </AppLayout>
     );
   }
@@ -126,23 +134,25 @@ export default function OrderDetailPage() {
         <button
           type="button"
           onClick={() => navigate("/orders")}
-          className="text-blue-400 mb-6 hover:underline text-sm sm:text-base"
+          className="mb-6 text-sm font-semibold text-blue-600 transition hover:underline dark:text-blue-400 sm:text-base"
         >
           Back to Orders
         </button>
 
         {error && (
-          <div className="mb-5 rounded-lg border border-red-500/40 bg-red-600/10 p-3 text-sm text-red-300">
+          <div className="mb-5 rounded-lg border border-red-500/40 bg-red-600/10 p-3 text-sm text-red-700 dark:text-red-300">
             {error}
           </div>
         )}
 
-        <div className="rounded-lg bg-slate-800 p-4 sm:p-6">
-          <div className="border-b border-slate-700 pb-4 mb-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 sm:p-6">
+          <div className="mb-4 border-b border-slate-200 pb-4 dark:border-zinc-700">
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-xl font-bold text-white sm:text-2xl">Order Details</h1>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
+                Order Details
+              </h1>
               {status === "live" && (
-                <span className="flex items-center gap-1.5 rounded-full bg-emerald-600/20 px-3 py-1 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/30">
+                <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/30">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
@@ -151,9 +161,11 @@ export default function OrderDetailPage() {
                 </span>
               )}
             </div>
-            <p className="break-all text-gray-400 text-xs sm:text-sm">Order ID: {detail.order.order_id}</p>
+            <p className="break-all text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
+              Order ID: {detail.order.order_id}
+            </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-400">Order</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Order</span>
               <span
                 className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${getOrderStatusStyle(
                   detail.order.status
@@ -166,14 +178,14 @@ export default function OrderDetailPage() {
 
           {detail.address && (
             <div className="mb-6">
-              <h3 className="text-white font-semibold mb-2">Shipping Address</h3>
-              <div className="bg-slate-700/50 rounded-lg p-4">
-                <p className="text-white">{detail.address.full_name}</p>
-                <p className="text-gray-300 text-sm">
+              <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">Shipping Address</h3>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-zinc-700 dark:bg-zinc-950">
+                <p className="font-semibold text-slate-900 dark:text-white">{detail.address.full_name}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
                   {detail.address.address_line1}
                   {detail.address.address_line2 ? `, ${detail.address.address_line2}` : ""}
                 </p>
-                <p className="text-gray-300 text-sm">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
                   {detail.address.city}, {detail.address.state} - {detail.address.pincode}
                 </p>
               </div>
@@ -181,34 +193,39 @@ export default function OrderDetailPage() {
           )}
 
           <div className="mb-6">
-            <h3 className="text-white font-semibold mb-2">Order Items</h3>
+            <h3 className="mb-2 font-semibold text-slate-900 dark:text-white">Order Items</h3>
             <div className="space-y-3">
               {detail.items.map((item) => (
-                <div key={item.id} className="flex flex-col gap-3 rounded-lg bg-slate-700/50 p-3  sm:p-4 sm:flex-row sm:items-start sm:gap-4">
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-950 sm:flex-row sm:items-start sm:gap-4 sm:p-4"
+                >
                   <img
                     src={item.thumbnail}
                     alt={item.title}
-                  className="w-14 h-14 sm:w-16 sm:h-16 object-contain bg-white rounded"
+                    className="h-14 w-14 rounded bg-white object-contain sm:h-16 sm:w-16"
                   />
                   <div className="flex-1">
-                    <p className="text-white text-sm">{item.title}</p>
-                    <p className="text-gray-400 text-xs">Qty: {item.quantity}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{item.title}</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300">Qty: {item.quantity}</p>
                   </div>
-                  <p className="font-semibold text-blue-400 sm:text-right">{formatMoney(item.price * item.quantity)}</p>
+                  <p className="font-semibold text-blue-600 dark:text-blue-400 sm:text-right">
+                    {formatMoney(item.price * item.quantity)}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="border-t border-slate-700 pt-4">
-            <div className="flex items-start justify-between gap-3 text-lg font-bold text-white sm:text-xl">
+          <div className="border-t border-slate-200 pt-4 dark:border-zinc-700">
+            <div className="flex items-start justify-between gap-3 text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
               <span>Total</span>
-              <span className="text-right text-blue-400">{formatMoney(detail.order.total)}</span>
+              <span className="text-right text-blue-600 dark:text-blue-400">{formatMoney(detail.order.total)}</span>
             </div>
             {shouldShowExpectedDelivery(detail.order.status) && (
-              <div className="mt-3 flex flex-col gap-1 text-sm text-slate-300 sm:flex-row sm:justify-between">
+              <div className="mt-3 flex flex-col gap-1 text-sm text-slate-600 dark:text-slate-300 sm:flex-row sm:justify-between">
                 <span>Expected Delivery</span>
-                <span className="text-emerald-300">
+                <span className="font-semibold text-emerald-700 dark:text-emerald-300">
                   {detail.order.status === "delivered"
                     ? "Delivered"
                     : getExpectedDeliveryDate(detail.order)}

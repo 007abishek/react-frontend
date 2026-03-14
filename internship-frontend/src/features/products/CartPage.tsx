@@ -1,12 +1,14 @@
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import AppLayout from "../../components/layout/AppLayout";
+import { useToast } from "../../components/toast/useToast";
 import { increaseQty, decreaseQty, removeFromCart } from "./cartSlice";
 import { selectCartItems, selectCartTotal } from "./cartSelectors";
 
 export default function CartPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const toast = useToast();
 
   const cartItems = useAppSelector(selectCartItems);
   const totalAmount = useAppSelector(selectCartTotal);
@@ -50,23 +52,46 @@ export default function CartPage() {
                   <p className="text-sm sm:text-base font-bold text-blue-600">Rs {item.price}</p>
                 </div>
 
-                <div className="h-8 w-8 sm:h-9 sm:2-9 rounded border flex items-center gap-2 sm:gap-3">
-                  <button onClick={() => dispatch(decreaseQty(item.id))}>-</button>
-                  <span>{item.quantity}</span>
-                  <button onClick={() => dispatch(increaseQty(item.id))}>+</button>
-                </div>
+                <div className="flex items-center justify-between gap-3 sm:justify-end sm:gap-4">
+                  <div className="inline-flex items-stretch overflow-hidden rounded-lg border border-slate-200 dark:border-zinc-700">
+                    <button
+                      type="button"
+                      onClick={() => dispatch(decreaseQty(item.id))}
+                      disabled={item.quantity <= 1}
+                      aria-label="Decrease quantity"
+                      className="px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-200 dark:hover:bg-zinc-800"
+                    >
+                      -
+                    </button>
+                    <span className="min-w-10 px-3 py-2 text-center text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => dispatch(increaseQty(item.id))}
+                      aria-label="Increase quantity"
+                      className="px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-zinc-800"
+                    >
+                      +
+                    </button>
+                  </div>
 
-                <button
-                  onClick={() => dispatch(removeFromCart(item.id))}
-                  className="self-start sm:self-auto text-xs sm:text-sm text-red-500 "
-                >
-                  Remove
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dispatch(removeFromCart(item.id));
+                      toast.info(`Removed "${item.title}" from cart`, "Removed");
+                    }}
+                    className="text-xs sm:text-sm font-medium text-rose-500 transition hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             ))}
           </div>
 
-          <div className="rounded-xl bg-white p-4 sm:p-5 lg:p-6 dark:bg-zinc-900">
+          <div className="h-fit self-start rounded-xl bg-white p-4 sm:p-5 lg:sticky lg:top-24 lg:p-6 dark:bg-zinc-900">
             <div className="flex justify-between text-base sm:text-lg font-bold">
               <span>Total</span>
               <span>Rs {totalAmount.toFixed(2)}</span>
@@ -74,7 +99,7 @@ export default function CartPage() {
 
             <button
               onClick={() => navigate("/checkout")}
-              className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 sm:py-3 text-white"
+              className="mt-4 w-full rounded-lg bg-blue-600 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 sm:py-3 sm:text-base"
             >
               Proceed to Checkout
             </button>

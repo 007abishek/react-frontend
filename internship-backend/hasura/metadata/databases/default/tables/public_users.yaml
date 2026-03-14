@@ -23,6 +23,7 @@ select_permissions:
         - id
         - firebase_uid
         - email
+        - email_verified
         - provider
         - is_guest
         - created_at

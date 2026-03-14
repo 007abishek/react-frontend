@@ -6,7 +6,10 @@ import {
   getRedirectResult,
   signInAnonymously,
   fetchSignInMethodsForEmail,
-  signOut,
+  linkWithCredential,
+  GoogleAuthProvider,
+  GithubAuthProvider,
+  type AuthCredential,
 } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
 import { useLocation, useNavigate, Link } from "react-router-dom";
@@ -19,12 +22,27 @@ import { loginFormSchema } from "@/features/auth/schemas/authSchemas";
 
 type AuthProvider = "password" | "google" | "github" | "guest";
 
+type PendingOAuthLink = {
+  email: string;
+  provider: "google" | "github"; // provider of the *pending* credential
+  credential: AuthCredential;
+};
+
+type PendingOAuthLinkStored = {
+  email: string;
+  provider: PendingOAuthLink["provider"];
+  accessToken?: string;
+  idToken?: string;
+  secret?: string;
+};
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pendingOAuthLink, setPendingOAuthLink] = useState<PendingOAuthLink | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,12 +70,19 @@ export default function Login() {
         return "No account found with this email";
       case "auth/wrong-password":
         return "Incorrect password";
+      case "auth/invalid-credential":
+      case "auth/invalid-login-credentials":
+        return "Invalid email or password";
       case "auth/invalid-email":
         return "Invalid email address";
+      case "auth/user-disabled":
+        return "This account has been disabled.";
+      case "auth/network-request-failed":
+        return "Network error. Please check your connection and try again.";
       case "auth/too-many-requests":
         return "Too many attempts. Try again later";
       default:
-        return "Something went wrong. Please try again";
+        return "Login failed. Please try again.";
     }
   };
 
@@ -81,11 +106,211 @@ export default function Login() {
     return typeof email === "string" ? email : null;
   };
 
+  const PENDING_OAUTH_LINK_KEY = "pending_oauth_link";
+
+  const clearPendingOAuthLink = (): void => {
+    setPendingOAuthLink(null);
+    try {
+      sessionStorage.removeItem(PENDING_OAUTH_LINK_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
+  const storePendingOAuthLink = (pending: PendingOAuthLink | null): void => {
+    setPendingOAuthLink(pending);
+
+    if (!pending) {
+      try {
+        sessionStorage.removeItem(PENDING_OAUTH_LINK_KEY);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    const maybeOAuth = pending.credential as unknown as {
+      accessToken?: unknown;
+      idToken?: unknown;
+      secret?: unknown;
+    };
+
+    const stored: PendingOAuthLinkStored = {
+      email: pending.email,
+      provider: pending.provider,
+      accessToken: typeof maybeOAuth.accessToken === "string" ? maybeOAuth.accessToken : undefined,
+      idToken: typeof maybeOAuth.idToken === "string" ? maybeOAuth.idToken : undefined,
+      secret: typeof maybeOAuth.secret === "string" ? maybeOAuth.secret : undefined,
+    };
+
+    try {
+      sessionStorage.setItem(PENDING_OAUTH_LINK_KEY, JSON.stringify(stored));
+    } catch {
+      // ignore
+    }
+  };
+
+  const restorePendingOAuthLinkFromStorage = (): PendingOAuthLink | null => {
+    try {
+      const raw = sessionStorage.getItem(PENDING_OAUTH_LINK_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<PendingOAuthLinkStored> | null;
+      if (
+        !parsed ||
+        typeof parsed.email !== "string" ||
+        (parsed.provider !== "google" && parsed.provider !== "github")
+      ) {
+        return null;
+      }
+
+      if (parsed.provider === "google") {
+        const credential = GoogleAuthProvider.credential(
+          typeof parsed.idToken === "string" ? parsed.idToken : null,
+          typeof parsed.accessToken === "string" ? parsed.accessToken : null
+        );
+        if (!credential) return null;
+        return { email: parsed.email, provider: "google", credential };
+      }
+
+      if (typeof parsed.accessToken !== "string" || !parsed.accessToken) return null;
+      const credential = GithubAuthProvider.credential(parsed.accessToken);
+      if (!credential) return null;
+      return { email: parsed.email, provider: "github", credential };
+    } catch {
+      return null;
+    }
+  };
+
+  const linkPendingCredentialIfPresent = async (): Promise<void> => {
+    if (!pendingOAuthLink) return;
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const currentEmail = currentUser.email?.trim().toLowerCase() ?? null;
+    const pendingEmail = pendingOAuthLink.email.trim().toLowerCase();
+    if (currentEmail && currentEmail !== pendingEmail) {
+      return;
+    }
+
+    try {
+      await linkWithCredential(currentUser, pendingOAuthLink.credential);
+      clearPendingOAuthLink();
+      setError(null);
+    } catch (err) {
+      const firebaseError = err as FirebaseError;
+      if (
+        firebaseError.code === "auth/provider-already-linked" ||
+        firebaseError.code === "auth/credential-already-in-use"
+      ) {
+        clearPendingOAuthLink();
+        setError(null);
+        return;
+      }
+      setError("Account linking failed. Please try again.");
+    }
+  };
+
+  const handleAccountExistsWithDifferentCredential = async (
+    firebaseError: FirebaseError,
+    attemptedProvider: PendingOAuthLink["provider"]
+  ): Promise<void> => {
+    clearPendingOAuthLink();
+    const accountEmail = getEmailFromCustomData(firebaseError.customData);
+    if (!accountEmail) {
+      setError("This email is already registered with another provider.");
+      return;
+    }
+
+    const pendingCredential =
+      attemptedProvider === "google"
+        ? GoogleAuthProvider.credentialFromError(firebaseError)
+        : GithubAuthProvider.credentialFromError(firebaseError);
+
+    if (pendingCredential) {
+      storePendingOAuthLink({
+        email: accountEmail,
+        provider: attemptedProvider,
+        credential: pendingCredential,
+      });
+    }
+
+    let methods: string[] = [];
+    try {
+      methods = await fetchSignInMethodsForEmail(auth, accountEmail);
+    } catch {
+      setError("Unable to look up existing sign-in methods for this email. Please try again.");
+      return;
+    }
+    const preferredMethod = methods.includes("password")
+      ? "password"
+      : methods.includes("google.com")
+      ? "google"
+      : methods.includes("github.com")
+      ? "github"
+      : null;
+
+    setEmail(accountEmail);
+
+    if (preferredMethod === "password") {
+      setError(
+        "An account already exists with this email. Please login with Email & Password to link your Google/GitHub sign-in."
+      );
+      return;
+    }
+
+    if (preferredMethod === "google") {
+      setError(
+        "An account already exists with this email using Google. Please login with Google to link accounts."
+      );
+      return;
+    }
+
+    if (preferredMethod === "github") {
+      setError(
+        "An account already exists with this email using GitHub. Please login with GitHub to link accounts."
+      );
+      return;
+    }
+
+    if (methods.length) {
+      setError(
+        `This email is already registered with: ${methods.join(
+          ", "
+        )}. Please login using that method to link accounts.`
+      );
+      return;
+    }
+
+    setError("This email is already registered. Please login using the original sign-in method.");
+  };
+
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       navigate(redirectPath, { replace: true });
     }
   }, [authLoading, isAuthenticated, navigate, redirectPath]);
+
+  useEffect(() => {
+    const restored = restorePendingOAuthLinkFromStorage();
+    if (restored) {
+      setPendingOAuthLink(restored);
+    }
+  }, []);
+
+  useEffect(() => {
+    const pendingEmail = localStorage.getItem("pending_otp_verification_email");
+    if (!pendingEmail) return;
+    setError("Please verify the OTP sent to your email before logging in.");
+    localStorage.removeItem("pending_otp_verification_email");
+  }, []);
+
+  useEffect(() => {
+    const message = localStorage.getItem("auth_exchange_error");
+    if (!message) return;
+    setError(message);
+    localStorage.removeItem("auth_exchange_error");
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -99,24 +324,14 @@ export default function Login() {
         const provider: AuthProvider = providerId === "github.com" ? "github" : "google";
         setError(null);
         console.log("OAuth redirect completed for provider:", provider);
+        await linkPendingCredentialIfPresent();
       } catch (err) {
         if (!mounted) return;
 
         const firebaseError = err as FirebaseError;
         if (firebaseError.code === "auth/account-exists-with-different-credential") {
-          const accountEmail = getEmailFromCustomData(firebaseError.customData);
-          if (!accountEmail) {
-            setError("This email is already registered with another provider.");
-            return;
-          }
-
-          const methods = await fetchSignInMethodsForEmail(auth, accountEmail);
-          if (methods.includes("github.com")) {
-            setError("This email is already registered using GitHub. Please login with GitHub.");
-            return;
-          }
-
-          setError("This email is already registered with another provider.");
+          // Redirect flow is currently used for Google on mobile.
+          await handleAccountExistsWithDifferentCredential(firebaseError, "google");
           return;
         }
 
@@ -134,18 +349,15 @@ export default function Login() {
 
     try {
       setLoading(true);
-      const response = await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);
 
-      await response.user.reload();
-      if (!response.user.emailVerified) {
-        await signOut(auth);
-        setError("Please verify your email before logging in.");
-        return;
-      }
-
+      await linkPendingCredentialIfPresent();
       setError(null);
     } catch (err) {
       const firebaseError = err as FirebaseError;
+      if (import.meta.env?.DEV) {
+        console.warn("Firebase login failed:", firebaseError.code, firebaseError.message);
+      }
       setError(getAuthErrorMessage(firebaseError.code));
     } finally {
       setLoading(false);
@@ -161,22 +373,12 @@ export default function Login() {
       }
 
       await signInWithPopup(auth, googleProvider);
+      await linkPendingCredentialIfPresent();
       setError(null);
     } catch (err) {
       const firebaseError = err as FirebaseError;
       if (firebaseError.code === "auth/account-exists-with-different-credential") {
-        const accountEmail = getEmailFromCustomData(firebaseError.customData);
-        if (!accountEmail) {
-          setError("This email is already registered with another provider.");
-          return;
-        }
-
-        const methods = await fetchSignInMethodsForEmail(auth, accountEmail);
-        if (methods.includes("github.com")) {
-          setError("This email is already registered using GitHub. Please login with GitHub.");
-        } else {
-          setError("This email is already registered with another provider.");
-        }
+        await handleAccountExistsWithDifferentCredential(firebaseError, "google");
       } else {
         setError(getOAuthErrorMessage(firebaseError.code));
       }
@@ -189,22 +391,12 @@ export default function Login() {
     try {
       setLoading(true);
       await signInWithPopup(auth, githubProvider);
+      await linkPendingCredentialIfPresent();
       setError(null);
     } catch (err) {
       const firebaseError = err as FirebaseError;
       if (firebaseError.code === "auth/account-exists-with-different-credential") {
-        const accountEmail = getEmailFromCustomData(firebaseError.customData);
-        if (!accountEmail) {
-          setError("This email is already registered with another provider.");
-          return;
-        }
-
-        const methods = await fetchSignInMethodsForEmail(auth, accountEmail);
-        if (methods.includes("google.com")) {
-          setError("This email is already registered using Google. Please login with Google.");
-        } else {
-          setError("This email is already registered with another provider.");
-        }
+        await handleAccountExistsWithDifferentCredential(firebaseError, "github");
       } else {
         setError("GitHub login failed. Try again");
       }

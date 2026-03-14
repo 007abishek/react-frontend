@@ -1,13 +1,24 @@
 param(
   [string]$HasuraUrl = "http://localhost:8080",
   [string]$AdminSecret = "hasura_admin_secret_123",
-  [string]$MetadataPath = ".\hasura-metadata.json",
-  [string]$SeedPath = ".\hasura\seeds\default\products_seed.sql",
+  [string]$MetadataPath = "hasura-metadata.json",
+  [string]$SeedPath = "hasura\\seeds\\default\\products_seed.sql",
   [int]$HealthRetries = 30,
   [int]$HealthRetryDelaySec = 3
 )
 
 $ErrorActionPreference = "Stop"
+$ScriptRoot = $PSScriptRoot
+if (-not $ScriptRoot) {
+  $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+
+if (-not [System.IO.Path]::IsPathRooted($MetadataPath)) {
+  $MetadataPath = Join-Path $ScriptRoot $MetadataPath
+}
+if (-not [System.IO.Path]::IsPathRooted($SeedPath)) {
+  $SeedPath = Join-Path $ScriptRoot $SeedPath
+}
 
 function Invoke-HasuraMetadata {
   param([string]$Body)

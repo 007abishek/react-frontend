@@ -5,3 +5,6 @@ export { handleCreateStripePaymentIntentAction } from "./createStripePaymentInte
 export { handleAuthLoginAction } from "./authLogin.action";
 export { handleIssueHasuraTokenAction } from "./issueHasuraToken.action";
 export { handleInvokeEmailLambdaAction } from "./invokeEmailLambda.action";
+
+export { handleSendOtpAction} from "./sendOtp.action";
+export { handleVerifyOtpAction} from "./verifyOtp.action";

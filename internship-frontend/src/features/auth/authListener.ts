@@ -4,41 +4,25 @@ import { loginSuccess, logout, authResolved } from "./authSlice";
 import { setCart, clearCart } from "../products/cartSlice";
 import { loadCartForUser } from "../../utils/indexedDb";
 import type { AppDispatch } from "../../app/store";
-import { clearHasuraToken, hasValidHasuraToken, setHasuraToken } from "../../utils/hasuraClient";
+import { clearHasuraToken, setHasuraToken } from "../../utils/hasuraClient";
+import { resolveHasuraUrl } from "../../utils/hasuraUrl";
 import { clearPaymentStatusCache, fetchCart, syncCart } from "../products/hasuraCommerce";
 
-const HASURA_URL = import.meta.env.VITE_HASURA_URL || "http://localhost:8080/v1/graphql";
-
-async function exchangeBackendJwtForHasuraToken(backendJwt: string): Promise<string | null> {
-  const res = await fetch(HASURA_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query: `
-        mutation IssueHasuraToken($backendJwt: String!) {
-          issueHasuraToken(backendJwt: $backendJwt) {
-            token
-          }
-        }
-      `,
-      variables: { backendJwt },
-    }),
-  });
-
-  if (!res.ok) return null;
-  const payload = (await res.json()) as {
-    data?: { issueHasuraToken?: { token?: string } };
-    errors?: Array<{ message?: string }>;
-  };
-  if (payload.errors?.length) return null;
-  return payload.data?.issueHasuraToken?.token ?? null;
-}
+const HASURA_URL = resolveHasuraUrl();
 
 export const startAuthListener = (dispatch: AppDispatch) => {
+  const setAuthExchangeError = (message: string) => {
+    try {
+      localStorage.setItem("auth_exchange_error", message);
+    } catch {
+      // ignore
+    }
+  };
+
   return onAuthStateChanged(auth, async (firebaseUser) => {
     // if user is logged out
     if (!firebaseUser) {
-      localStorage.removeItem("backend_jwt");
+      localStorage.removeItem("jwt"); //remove authentication tokens
       clearHasuraToken();
       clearPaymentStatusCache();
       dispatch(logout());
@@ -55,28 +39,13 @@ export const startAuthListener = (dispatch: AppDispatch) => {
     const providerId = firebaseUser.providerData[0]?.providerId;
     const isOAuthProvider =
       providerId === "google.com" || providerId === "github.com";
-    
-
-    //email verification check 
-    if (
-      !isOAuthProvider &&
-      !firebaseUser.isAnonymous &&
-      !firebaseUser.emailVerified
-    ) {
-      await signOut(auth);
-      localStorage.removeItem("backend_jwt");
-      clearHasuraToken();
-      clearPaymentStatusCache();
-      dispatch(logout());
-      dispatch(clearCart());
-      dispatch(authResolved());
-      return;
-    }
 
     try {
+      let hasuraToken: string | null = null;
+      let backendEmailVerified = true;
       //get firebase ID token(this token proves user authenticated by firebase)
       const firebaseIdToken = await firebaseUser.getIdToken();
-      const res = await fetch(HASURA_URL, {
+      const res = await fetch(HASURA_URL, { //exchange token with backend(backend verifies firebase token and returns hasura jwt)e
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -91,6 +60,7 @@ export const startAuthListener = (dispatch: AppDispatch) => {
                   email
                   provider
                   isGuest
+                  emailVerified
                 }
               }
             }
@@ -101,39 +71,92 @@ export const startAuthListener = (dispatch: AppDispatch) => {
 
       if (res.ok) {
         const payload = (await res.json()) as {
-          data?: { authLogin?: { token?: string; hasuraToken?: string } };
+          data?: {
+            authLogin?: {
+              token?: string;
+              hasuraToken?: string;
+              user?: { emailVerified?: boolean };
+            };
+          };
           errors?: Array<{ message?: string }>;
         };
         const loginData = payload.data?.authLogin;
-        if (loginData?.token && loginData?.hasuraToken) {
-          localStorage.setItem("backend_jwt", loginData.token);
-          setHasuraToken(loginData.hasuraToken);
+        if (loginData?.hasuraToken) {
+          hasuraToken = loginData.hasuraToken;
+          setHasuraToken(hasuraToken); //this sets the token in GraphQl Client
           clearPaymentStatusCache();
-        } else if (loginData?.token) {
-          localStorage.setItem("backend_jwt", loginData.token);
-          const fallbackHasuraToken = await exchangeBackendJwtForHasuraToken(loginData.token);
-          if (fallbackHasuraToken) {
-            setHasuraToken(fallbackHasuraToken);
-            clearPaymentStatusCache();
-          } else {
-            clearHasuraToken();
-          }
+          backendEmailVerified = Boolean(loginData.user?.emailVerified);
         } else {
-          // Keep local read-only flow without noisy console warnings when auth action is unavailable.
-          localStorage.removeItem("backend_jwt");
+          if (payload.errors?.length) {
+            const messages = payload.errors
+              .map((e) => String(e.message ?? "").trim())
+              .filter(Boolean);
+            console.error("authLogin GraphQL errors:", messages.length ? messages : payload.errors);
+            setAuthExchangeError(
+              `Login succeeded but server session setup failed: ${messages.length ? messages.join("; ") : "Unknown error."}`
+            );
+          } else {
+            console.error("authLogin returned no hasuraToken:", payload);
+            setAuthExchangeError("Login succeeded but no Hasura token was returned. Please try again.");
+          }
           clearHasuraToken();
         }
       } else {
-        await res.text();
-        localStorage.removeItem("backend_jwt");
+        const bodyText = await res.text();
+        console.error("authLogin HTTP error:", res.status, bodyText);
+        const suffix =
+          import.meta.env?.DEV && bodyText
+            ? ` (${bodyText.trim().slice(0, 160)})`
+            : "";
+        setAuthExchangeError(`Server session setup failed (HTTP ${res.status}).${suffix}`);
+      }
+
+      if (!hasuraToken) {
+        await signOut(auth);
         clearHasuraToken();
+        clearPaymentStatusCache();
+        dispatch(logout());
+        dispatch(clearCart());
+        dispatch(authResolved());
+        return;
+      }
+
+      if (!isOAuthProvider && !firebaseUser.isAnonymous && !backendEmailVerified) {
+        localStorage.setItem("pending_otp_verification_email", firebaseUser.email ?? "");
+        await signOut(auth);
+        clearHasuraToken();
+        clearPaymentStatusCache();
+        dispatch(logout());
+        dispatch(clearCart());
+        dispatch(authResolved());
+        return;
       }
     } catch (err) {
-      void err;
-      localStorage.removeItem("backend_jwt");
+      console.warn("Backend auth exchange failed:", err);
+      const rawMessage =
+        err instanceof Error ? err.message : String((err as { message?: unknown })?.message ?? err);
+      const normalized = rawMessage.toLowerCase();
+      if (
+        normalized.includes("failed to fetch") ||
+        normalized.includes("network") ||
+        normalized.includes("connection reset") ||
+        normalized.includes("err_connection_reset")
+      ) {
+        setAuthExchangeError(
+          `Server session setup failed: unable to reach ${HASURA_URL}. Check VITE_HASURA_URL and that Hasura is running.`
+        );
+      } else {
+        setAuthExchangeError("Server session setup failed. Please try again.");
+      }
+      await signOut(auth);
       clearHasuraToken();
+      clearPaymentStatusCache();
+      dispatch(logout());
+      dispatch(clearCart());
+      dispatch(authResolved());
+      return;
     }
-
+     //update redux auth state
     dispatch(
       loginSuccess({
         uid: firebaseUser.uid,
@@ -151,13 +174,6 @@ export const startAuthListener = (dispatch: AppDispatch) => {
      
     //if user is not guest
     if (!firebaseUser.isAnonymous) {
-      if (!hasValidHasuraToken()) {
-        const localCart = await loadCartForUser(firebaseUser.uid).catch(() => []);
-        dispatch(setCart(localCart));
-        dispatch(authResolved());
-        return;
-      }
-
       try {
         const cart = await fetchCart();
         dispatch(setCart(cart));
@@ -180,6 +196,6 @@ export const startAuthListener = (dispatch: AppDispatch) => {
       }
     }
 
-    dispatch(authResolved());
+    dispatch(authResolved()); //authentication loading finished
   });
 };

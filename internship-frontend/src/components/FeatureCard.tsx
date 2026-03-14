@@ -1,61 +1,55 @@
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
+type FeatureTone = "teal" | "purple" | "cyan";
+
 interface FeatureCardProps {
-  icon: string;
+  icon: ReactNode;
   title: string;
   description: string;
   route: string;
+  tone?: FeatureTone;
+  metric?: string;
+  status?: string;
 }
+
+const toneMap: Record<FeatureTone, string> = {
+  teal: "bg-teal-100 text-teal-600 dark:bg-teal-400/20 dark:text-teal-300",
+  purple: "bg-violet-100 text-violet-600 dark:bg-violet-400/20 dark:text-violet-300",
+  cyan: "bg-cyan-100 text-cyan-600 dark:bg-cyan-400/20 dark:text-cyan-300",
+};
 
 export default function FeatureCard({
   icon,
   title,
   description,
   route,
+  tone = "teal",
+  metric,
+  status,
 }: FeatureCardProps) {
   const navigate = useNavigate();
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => navigate(route)}
-      className="
-        cursor-pointer
-        rounded-xl sm:rounded-2xl
-        p-4 sm:p-6
-        bg-white/70 dark:bg-slate-800/70
-        backdrop-blur-md
-        border border-slate-200/60 dark:border-slate-700/60
-        shadow-sm
-        transition
-        hover:shadow-md
-        hover:border-blue-400/40
-        active:scale-[0.98]
-      "
+      aria-label={`Open ${title}`}
+      className="group w-full rounded-2xl border border-[color:var(--border-subtle)] bg-[var(--bg-surface)] p-6 text-left shadow-[0_8px_26px_-22px_rgba(2,6,23,0.65)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_35px_-26px_rgba(76,29,149,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
     >
-      {/* Icon */}
-      <div
-        className="
-          mb-3 sm:mb-4
-          flex
-          h-10 w-10 sm:h-12 sm:w-12
-          items-center justify-center
-          rounded-lg sm:rounded-xl
-          bg-blue-500/10 dark:bg-blue-400/20
-          text-xl sm:text-2xl
-        "
-      >
+      <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-xl text-xl ${toneMap[tone]}`}>
         {icon}
       </div>
 
-      {/* Title */}
-      <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white mb-1">
-        {title}
-      </h2>
+      <h2 className="mb-1.5 text-2xl font-semibold leading-tight text-[var(--text-primary)]">{title}</h2>
+      <p className="text-base leading-relaxed text-[var(--text-secondary)]">{description}</p>
 
-      {/* Description */}
-      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-        {description}
-      </p>
-    </div>
+      {(metric || status) && (
+        <div className="mt-5 flex items-center justify-between border-t border-[color:var(--border-subtle)] pt-4">
+          <span className="text-sm font-medium text-[var(--text-secondary)]">{status ?? "Live"}</span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">{metric}</span>
+        </div>
+      )}
+    </button>
   );
 }

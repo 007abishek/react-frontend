@@ -1,8 +1,6 @@
 import { useState } from "react";
 import {
   createUserWithEmailAndPassword,
-  sendEmailVerification,
-  signOut,
 } from "firebase/auth";
 import type { FirebaseError } from "firebase/app";
 import { Link, useNavigate } from "react-router-dom";
@@ -11,6 +9,7 @@ import { auth } from "@/firebase/config";
 import AuthCard from "@/features/auth/components/AuthCard";
 import AuthShell from "@/features/auth/components/AuthShell";
 import { signupFormSchema } from "@/features/auth/schemas/authSchemas";
+import { resolveHasuraUrl } from "@/utils/hasuraUrl";
 
 export default function Signup() {
   const [email, setEmail] = useState("");
@@ -21,6 +20,7 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+  const HASURA_URL = resolveHasuraUrl();
   
 
   //form validation(zod) 
@@ -52,17 +52,48 @@ export default function Signup() {
 
     try {
       setLoading(true);
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
-      await sendEmailVerification(credential.user);
-      await signOut(auth);
+      const normalizedEmail = email.trim().toLowerCase();
+      await createUserWithEmailAndPassword(auth, normalizedEmail, password);
 
-      setSuccess("Verification email sent. Please verify your email before logging in.");
+      const res = await fetch(HASURA_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `
+            mutation SendOtp($email: String!, $purpose: String) {
+              sendOtp(email: $email, purpose: $purpose) {
+                success
+                message
+                expiresAt
+              }
+            }
+          `,
+          variables: { email: normalizedEmail, purpose: "email_verification" },
+        }),
+      });
+
+      const payload = (await res.json()) as {
+        data?: { sendOtp?: { success?: boolean; message?: string; expiresAt?: string } };
+        errors?: Array<{ message?: string }>;
+      };
+
+      if (!res.ok || payload.errors?.length || !payload.data?.sendOtp?.success) {
+        const message =
+          payload.errors?.[0]?.message ?? payload.data?.sendOtp?.message ?? "Failed to send OTP.";
+        throw new Error(message);
+      }
+
+      setSuccess("OTP sent. Please verify to complete signup.");
       setTimeout(() => {
-        navigate("/login");
+        navigate(`/verify-otp?email=${encodeURIComponent(normalizedEmail)}`);
       }, 2000);
     } catch (err) {
       const firebaseError = err as FirebaseError;
-      setError(getErrorMessage(firebaseError.code));
+      if (firebaseError?.code) {
+        setError(getErrorMessage(firebaseError.code));
+      } else {
+        setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

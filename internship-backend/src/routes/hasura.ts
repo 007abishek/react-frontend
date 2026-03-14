@@ -12,6 +12,9 @@ import {
   handleOrderInsertedEvent,
   handleGetPaymentStatusAction,
   handleIssueHasuraTokenAction,
+
+  handleSendOtpAction,
+  handleVerifyOtpAction
 } from "../controllers/hasura";
 
 const router = Router();
@@ -44,4 +47,7 @@ router.post(
 );
 router.post("/actions/invoke-email-lambda", ensureHasuraActionSecret, handleInvokeEmailLambdaAction);
 
+//otp
+router.post("/actions/send-otp",ensureHasuraActionSecret,handleSendOtpAction);
+router.post("/actions/verify-otp",ensureHasuraActionSecret,handleVerifyOtpAction);
 export default router;

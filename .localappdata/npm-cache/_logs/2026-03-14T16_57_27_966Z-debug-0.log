@@ -1,0 +1,96 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.9.2
+2 info using node@v22.14.0
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:D:\talview\internship-frontend\.npmrc
+5 silly config load:file:D:\talview\.home\.npmrc
+6 silly config load:file:D:\talview\.appdata\npm\etc\npmrc
+7 verbose title npm install
+8 verbose argv "install"
+9 verbose logfile logs-max:10 dir:D:\talview\.localappdata\npm-cache\_logs\2026-03-14T16_57_27_966Z-
+10 verbose logfile D:\talview\.localappdata\npm-cache\_logs\2026-03-14T16_57_27_966Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+13 silly idealTree buildDeps
+14 silly fetch manifest @testing-library/react@^16.3.0
+15 silly packumentCache full:https://registry.npmjs.org/@testing-library%2freact cache-miss
+16 verbose shrinkwrap failed to load node_modules/.package-lock.json missing from node_modules: node_modules/@esbuild/aix-ppc64
+17 http fetch GET https://registry.npmjs.org/@testing-library%2freact attempt 1 failed with EACCES
+18 http fetch GET https://registry.npmjs.org/@testing-library%2freact attempt 2 failed with EACCES
+19 http fetch GET https://registry.npmjs.org/@testing-library%2freact attempt 3 failed with EACCES
+20 silly fetch manifest @testing-library/user-event@^14.6.2
+21 silly packumentCache full:https://registry.npmjs.org/@testing-library%2fuser-event cache-miss
+22 http fetch GET https://registry.npmjs.org/@testing-library%2fuser-event attempt 1 failed with EACCES
+23 http fetch GET https://registry.npmjs.org/@testing-library%2fuser-event attempt 2 failed with EACCES
+24 http fetch GET https://registry.npmjs.org/@testing-library%2fuser-event attempt 3 failed with EACCES
+25 silly fetch manifest @types/jest@^30.0.0
+26 silly packumentCache full:https://registry.npmjs.org/@types%2fjest cache-miss
+27 http fetch GET https://registry.npmjs.org/@types%2fjest attempt 1 failed with EACCES
+28 http fetch GET https://registry.npmjs.org/@types%2fjest attempt 2 failed with EACCES
+29 http fetch GET https://registry.npmjs.org/@types%2fjest attempt 3 failed with EACCES
+30 silly fetch manifest identity-obj-proxy@^3.0.0
+31 silly packumentCache full:https://registry.npmjs.org/identity-obj-proxy cache-miss
+32 http fetch GET https://registry.npmjs.org/identity-obj-proxy attempt 1 failed with EACCES
+33 http fetch GET https://registry.npmjs.org/identity-obj-proxy attempt 2 failed with EACCES
+34 http fetch GET https://registry.npmjs.org/identity-obj-proxy attempt 3 failed with EACCES
+35 silly fetch manifest jest@^30.0.0
+36 silly packumentCache full:https://registry.npmjs.org/jest cache-miss
+37 http fetch GET https://registry.npmjs.org/jest attempt 1 failed with EACCES
+38 http fetch GET https://registry.npmjs.org/jest attempt 2 failed with EACCES
+39 http fetch GET https://registry.npmjs.org/jest attempt 3 failed with EACCES
+40 silly fetch manifest jest-environment-jsdom@^30.0.0
+41 silly packumentCache full:https://registry.npmjs.org/jest-environment-jsdom cache-miss
+42 http fetch GET https://registry.npmjs.org/jest-environment-jsdom attempt 1 failed with EACCES
+43 http fetch GET https://registry.npmjs.org/jest-environment-jsdom attempt 2 failed with EACCES
+44 http fetch GET https://registry.npmjs.org/jest-environment-jsdom attempt 3 failed with EACCES
+45 silly fetch manifest ts-jest@^30.0.0
+46 silly packumentCache full:https://registry.npmjs.org/ts-jest cache-miss
+47 http fetch GET https://registry.npmjs.org/ts-jest attempt 1 failed with EACCES
+48 http fetch GET https://registry.npmjs.org/ts-jest attempt 2 failed with EACCES
+49 http fetch GET https://registry.npmjs.org/ts-jest attempt 3 failed with EACCES
+50 silly placeDep ROOT @testing-library/react@ OK for: internship-frontend@0.0.0 want: ^16.3.0
+51 silly placeDep ROOT @testing-library/user-event@ REPLACE for: internship-frontend@0.0.0 want: ^14.6.2
+52 silly placeDep ROOT @types/jest@ OK for: internship-frontend@0.0.0 want: ^30.0.0
+53 silly placeDep ROOT identity-obj-proxy@ OK for: internship-frontend@0.0.0 want: ^3.0.0
+54 silly placeDep ROOT jest@ OK for: internship-frontend@0.0.0 want: ^30.0.0
+55 silly placeDep ROOT jest-environment-jsdom@ OK for: internship-frontend@0.0.0 want: ^30.0.0
+56 silly placeDep ROOT ts-jest@ OK for: internship-frontend@0.0.0 want: ^30.0.0
+57 verbose type system
+58 verbose stack FetchError: request to https://registry.npmjs.org/@testing-library%2freact failed, reason: 
+58 verbose stack     at ClientRequest.<anonymous> (C:\Program Files\nodejs\node_modules\npm\node_modules\minipass-fetch\lib\index.js:130:14)
+58 verbose stack     at ClientRequest.emit (node:events:518:28)
+58 verbose stack     at emitErrorEvent (node:_http_client:104:11)
+58 verbose stack     at _destroy (node:_http_client:898:9)
+58 verbose stack     at onSocketNT (node:_http_client:918:5)
+58 verbose stack     at process.processTicksAndRejections (node:internal/process/task_queues:91:21)
+59 error code EACCES
+60 error errno EACCES
+61 error FetchError: request to https://registry.npmjs.org/@testing-library%2freact failed, reason: 
+61 error     at ClientRequest.<anonymous> (C:\Program Files\nodejs\node_modules\npm\node_modules\minipass-fetch\lib\index.js:130:14)
+61 error     at ClientRequest.emit (node:events:518:28)
+61 error     at emitErrorEvent (node:_http_client:104:11)
+61 error     at _destroy (node:_http_client:898:9)
+61 error     at onSocketNT (node:_http_client:918:5)
+61 error     at process.processTicksAndRejections (node:internal/process/task_queues:91:21) {
+61 error   code: 'EACCES',
+61 error   errno: 'EACCES',
+61 error   type: 'system',
+61 error   requiredBy: '.'
+61 error }
+62 error
+62 error The operation was rejected by your operating system.
+62 error It's possible that the file was already in use (by a text editor or antivirus),
+62 error or that you lack permissions to access it.
+62 error
+62 error If you believe this might be a permissions issue, please double-check the
+62 error permissions of the file and its containing directories, or try running
+62 error the command again as root/Administrator.
+63 silly unfinished npm timer reify 1773507449493
+64 silly unfinished npm timer reify:loadTrees 1773507449494
+65 verbose cwd D:\talview\internship-frontend
+66 verbose os Windows_NT 10.0.22631
+67 verbose node v22.14.0
+68 verbose npm  v10.9.2
+69 verbose exit 1
+70 verbose code 1
+71 error A complete log of this run can be found in: D:\talview\.localappdata\npm-cache\_logs\2026-03-14T16_57_27_966Z-debug-0.log
