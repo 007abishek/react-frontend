@@ -15,8 +15,12 @@ This document explains the temporal flow of the app, from user authentication to
 3. Listener gets Firebase ID token and calls Hasura action `authLogin`.
    - `internship-frontend/src/features/auth/authListener.ts`
 4. Frontend stores:
-   - unified JWT in `localStorage.jwt` (used for both app auth and Hasura auth)
-5. Protected routes unlock after auth state resolves.
+   - Hasura JWT in `localStorage["jwt"]` (used for Hasura GraphQL `Authorization: Bearer <jwt>`)
+   - (Backend also returns a separate app JWT `token`, but the frontend does not persist/use it.)
+5. OAuth edge case: same email across providers (Google/GitHub).
+   - If Firebase throws `auth/account-exists-with-different-credential`, frontend looks up sign-in methods and links accounts after a successful login using the existing method.
+   - `internship-frontend/src/features/auth/Login.tsx`
+6. Protected routes unlock after auth state resolves.
    - `internship-frontend/src/components/ProtectedRoute.tsx`
    - `internship-frontend/src/app/router/modules/productRoutes.tsx`
 
@@ -24,11 +28,12 @@ This document explains the temporal flow of the app, from user authentication to
 1. Hasura action endpoint receives action request.
    - `internship-backend/src/routes/hasura.ts`
    - `internship-backend/src/controllers/hasura/authLogin.action.ts`
-2. Firebase token is verified, user is upserted in `users`, and one unified JWT is issued.
+2. Firebase token is verified and user is upserted in `users`.
    - `internship-backend/src/services/hasura/auth.service.ts`
    - `internship-backend/src/shared/auth/hasuraToken.ts`
-3. Same JWT contains Hasura session claims (`x-hasura-user-id`, etc.) and app-level claims.
-   - `internship-backend/src/shared/auth/hasuraToken.ts`
+3. Backend returns:
+   - `hasuraToken`: JWT with Hasura session claims (`x-hasura-user-id`, etc.) used by Hasura auth.
+   - `token`: backend app JWT (currently not used by the frontend).
 
 ### DB tables touched
 - `users`
@@ -264,7 +269,7 @@ Responsible files:
 
 ## Quick Reference: End-to-End Timeline
 
-1. `Login` -> Firebase token -> Hasura `authLogin` action -> unified JWT issued.
+1. `Login` -> Firebase token -> Hasura `authLogin` action -> `hasuraToken` stored in `localStorage["jwt"]`.
 2. `Products/Product detail` -> Hasura table queries.
 3. `Cart` -> Hasura `cart_items` sync (IndexedDB fallback).
 4. `Checkout` -> Hasura `createOrder` action -> DB transaction.

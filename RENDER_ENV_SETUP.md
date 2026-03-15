@@ -72,6 +72,11 @@ Set these in your frontend hosting provider:
 | `VITE_SENTRY_ENABLED` | `false` or `true` | optional |
 | `VITE_SENTRY_DSN` | DSN string | optional (Sentry project) |
 
+Notes:
+
+- `VITE_HASURA_URL` must point to the Hasura GraphQL endpoint (typically ends with `/v1/graphql`) and be reachable from the browser. If you see `Failed to fetch` / `ERR_CONNECTION_RESET` during login token exchange, verify this value and that Hasura is running.
+- When serving the frontend over `https`, use an `https` Hasura URL in production (to avoid mixed-content blocks).
+
 ## 4) Stripe webhook endpoint
 
 Create webhook in Stripe:

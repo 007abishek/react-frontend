@@ -1,6 +1,6 @@
 # Sequence Diagrams
 
-Last updated: 2026-03-14
+Last updated: 2026-03-15
 
 ## 1. Login and Token Exchange
 
@@ -85,6 +85,43 @@ sequenceDiagram
   AL->>FB: signOut()
   FB-->>FE: Logged out
   FE-->>FE: Show "Please verify the OTP..."
+```
+
+## 1.3 Signup + OTP Verification (Password)
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant FE as Frontend (React)
+  participant H as Hasura GraphQL (/v1/graphql)
+  participant BE1 as Backend Hasura Action (sendOtp)
+  participant BE2 as Backend Hasura Action (verifyOtp)
+  participant DB as PostgreSQL
+  participant SMTP as Email (SMTP)
+  participant FB as Firebase Auth
+  participant AL as Auth Listener (onAuthStateChanged)
+
+  U->>FE: Enter email + password
+  U->>FE: Click "Send OTP"
+  FE->>H: mutation sendOtp(email, purpose="email_verification")
+  H->>BE1: POST /hasura/actions/send-otp
+  BE1->>DB: store OTP (hash + TTL)
+  BE1->>SMTP: send OTP email
+  BE1-->>H: success + expiresAt
+  H-->>FE: action response
+
+  U->>FE: Enter 6-digit OTP
+  U->>FE: Click "Verify & Create Account"
+  FE->>H: mutation verifyOtp(email, otp, purpose="email_verification")
+  H->>BE2: POST /hasura/actions/verify-otp
+  BE2->>DB: verify OTP (+ attempt limits)
+  BE2->>DB: best-effort set users.email_verified=true
+  BE2-->>H: success
+  H-->>FE: action response
+
+  FE->>FB: createUserWithEmailAndPassword(email, password)
+  FB-->>AL: Auth state updated (firebaseUser)
+  Note over AL,H: AL then runs authLogin (see diagram 1)
 ```
 
 ## 2. Product Browse and Cart Sync

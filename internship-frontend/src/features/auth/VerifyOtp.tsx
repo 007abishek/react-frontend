@@ -3,21 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import AuthCard from "@/features/auth/components/AuthCard";
 import AuthShell from "@/features/auth/components/AuthShell";
-import { resolveHasuraUrl } from "@/utils/hasuraUrl";
-
-type SendOtpResponse = {
-  data?: {
-    sendOtp?: { success?: boolean; message?: string; expiresAt?: string };
-  };
-  errors?: Array<{ message?: string }>;
-};
-
-type VerifyOtpResponse = {
-  data?: {
-    verifyOtp?: { success?: boolean; message?: string };
-  };
-  errors?: Array<{ message?: string }>;
-};
+import { sendOtp, verifyOtp } from "@/features/auth/otpApi";
 
 export default function VerifyOtp() {
   const [searchParams] = useSearchParams();
@@ -30,7 +16,6 @@ export default function VerifyOtp() {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
-  const HASURA_URL = resolveHasuraUrl();
 
   const validate = () => {
     if (!email.trim()) {
@@ -54,30 +39,8 @@ export default function VerifyOtp() {
       setLoading(true);
       setError(null);
       setSuccess(null);
-
-      const res = await fetch(HASURA_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: `
-            mutation SendOtp($email: String!, $purpose: String) {
-              sendOtp(email: $email, purpose: $purpose) {
-                success
-                message
-                expiresAt
-              }
-            }
-          `,
-          variables: { email: email.trim(), purpose: "email_verification" },
-        }),
-      });
-
-      const payload = (await res.json()) as SendOtpResponse;
-      if (!res.ok || payload.errors?.length || !payload.data?.sendOtp?.success) {
-        const message =
-          payload.errors?.[0]?.message ?? payload.data?.sendOtp?.message ?? "Failed to resend OTP.";
-        throw new Error(message);
-      }
+      const result = await sendOtp({ email: email.trim(), purpose: "email_verification" });
+      if (!result.success) throw new Error(result.message || "Failed to resend OTP.");
 
       setSuccess("OTP resent. Please check your email.");
     } catch (err) {
@@ -94,31 +57,12 @@ export default function VerifyOtp() {
       setLoading(true);
       setError(null);
       setSuccess(null);
-
-      const res = await fetch(HASURA_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: `
-            mutation VerifyOtp($email: String!, $otp: String!, $purpose: String) {
-              verifyOtp(email: $email, otp: $otp, purpose: $purpose) {
-                success
-                message
-              }
-            }
-          `,
-          variables: { email: email.trim().toLowerCase(), otp: otp.trim(), purpose: "email_verification" },
-        }),
+      const result = await verifyOtp({
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+        purpose: "email_verification",
       });
-
-      const payload = (await res.json()) as VerifyOtpResponse;
-      if (!res.ok || payload.errors?.length || !payload.data?.verifyOtp?.success) {
-        const message =
-          payload.errors?.[0]?.message ??
-          payload.data?.verifyOtp?.message ??
-          "OTP verification failed.";
-        throw new Error(message);
-      }
+      if (!result.success) throw new Error(result.message || "OTP verification failed.");
 
       setSuccess("OTP verified. You can now login.");
       setTimeout(() => navigate("/login"), 800);

@@ -122,8 +122,14 @@ OAuth/Guest flows:
 - Google: popup on desktop, redirect on mobile
 - GitHub: popup
 - Guest: `signInAnonymously`
+- OAuth linking: if Firebase throws `auth/account-exists-with-different-credential`, frontend uses `fetchSignInMethodsForEmail` and links accounts after signing in with the existing method (`linkWithCredential`).
 
 ## Auth exchange to backend (from `authListener.ts`)
+
+Hasura endpoint resolution:
+
+- Frontend uses `resolveHasuraUrl()` (from `VITE_HASURA_URL` or `VITE_API_URL`).
+- When the app is served over `https`, it upgrades a non-local `http://` Hasura URL to `https://` to avoid mixed-content blocks.
 
 GraphQL mutation sent by frontend:
 
@@ -131,12 +137,14 @@ GraphQL mutation sent by frontend:
 mutation AuthLogin($firebaseIdToken: String!) {
   authLogin(firebaseIdToken: $firebaseIdToken) {
     token
+    hasuraToken
     user {
       id
       uid
       email
       provider
       isGuest
+      emailVerified
     }
   }
 }
@@ -154,13 +162,15 @@ Response used:
 {
   "data": {
     "authLogin": {
-      "token": "<jwt>",
+      "token": "<backend_jwt>",
+      "hasuraToken": "<hasura_jwt>",
       "user": {
         "id": 1,
         "uid": "...",
         "email": "user@example.com",
         "provider": "password|google|github|guest",
-        "isGuest": false
+        "isGuest": false,
+        "emailVerified": true
       }
     }
   }
@@ -169,9 +179,10 @@ Response used:
 
 Post-response logic:
 
-- Save JWT in `localStorage` (`jwt`)
-- Set token for Hasura client
+- Save `hasuraToken` in `localStorage["jwt"]` (single persisted token used by frontend for Hasura auth)
+- Apollo sends `Authorization: Bearer <jwt>`
 - Clear cart/payment caches on logout or auth failures
+- If `emailVerified` is false for password accounts, frontend forces sign-out and shows OTP verification message before allowing login.
 
 ## Backend action: `/hasura/actions/auth-login`
 
@@ -188,20 +199,23 @@ Validation/logic:
   - `anonymous -> guest`
   - else `password`
 - Upserts user in DB by firebase UID, or by email fallback
-- Issues signed JWT containing Hasura claims
+- Issues two tokens:
+  - `hasuraToken`: JWT containing Hasura session claims
+  - `token`: backend app JWT (returned but not used by frontend)
 
 Response:
 
 ```json
 {
-  "token": "<jwt>",
-  "hasuraToken": "<jwt>",
+  "token": "<backend_jwt>",
+  "hasuraToken": "<hasura_jwt>",
   "user": {
     "id": 1,
     "uid": "firebase_uid",
     "email": "user@example.com",
     "provider": "password",
-    "isGuest": false
+    "isGuest": false,
+    "emailVerified": true
   }
 }
 ```

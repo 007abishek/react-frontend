@@ -87,3 +87,4 @@ npm run dev
 - Hasura action/event secrets are enforced in backend middleware.
 - Stripe webhook signature verification is handled before controller execution.
 - Idempotency cleanup cron runs in backend startup (`src/index.ts`).
+- Frontend uses a single persisted token for Hasura: `localStorage["jwt"]` (set from backend `authLogin.hasuraToken`).

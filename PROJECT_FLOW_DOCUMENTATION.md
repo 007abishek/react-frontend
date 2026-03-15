@@ -1,6 +1,6 @@
 # Talview Internship Project Flow Documentation
 
-Last updated: 2026-03-09
+Last updated: 2026-03-14
 
 ## 1. System Overview
 
@@ -34,8 +34,11 @@ Flow:
 1. Firebase login completes in frontend.
 2. Frontend sends `authLogin(firebaseIdToken)` to Hasura.
 3. Hasura action hits backend `/hasura/actions/auth-login`.
-4. Backend verifies Firebase token, upserts `users`, returns unified JWT token.
-5. Frontend stores token and uses it for Hasura requests.
+4. Backend verifies Firebase token, upserts `users`, returns:
+   - `hasuraToken` (used for Hasura auth)
+   - `token` (backend JWT, currently not used by frontend)
+5. Frontend stores `hasuraToken` in `localStorage["jwt"]` and uses it for Hasura requests.
+6. OAuth edge case: Google/GitHub same email linking is handled in `Login.tsx` using `fetchSignInMethodsForEmail` + `linkWithCredential`.
 
 ## 3. Products and Cart
 
