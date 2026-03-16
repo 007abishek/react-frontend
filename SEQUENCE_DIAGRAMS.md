@@ -23,9 +23,10 @@ sequenceDiagram
   H->>BE: POST /hasura/actions/auth-login
   BE->>FB: verifyIdToken
   BE->>DB: upsert users
-  BE-->>H: hasuraToken + user
+  BE-->>H: hasuraToken + user (GraphQL selection; backend also issues a backend JWT but FE doesn't request/store it)
   H-->>FE: action response
-  FE->>FE: store hasuraToken in localStorage["jwt"]
+  AL->>FE: setHasuraToken(hasuraToken)
+  FE->>FE: persist localStorage["jwt"] and clear legacy keys ("hasura_jwt", "backend_jwt")
   FE->>FE: Apollo adds Authorization: Bearer <jwt>
   FE->>H: query fetchCart (optional)
 ```
@@ -182,7 +183,7 @@ sequenceDiagram
 
   H->>BE: POST /hasura/events/order-inserted
   BE->>DB: fetch workflow payload
-  BE->>T: start orderPlacementWorkflow(order-{orderId})
+  BE->>T: startWorkflowIdempotent(workflowType="orderPlacementWorkflow", workflowId="order-<orderId>")
   T-->>BE: started or already running
   BE-->>H: received
 ```
@@ -224,24 +225,43 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-  participant T as Temporal order workflow
-  participant A as Activities
-  participant DB as PostgreSQL
-  participant L as AWS Lambda
+  participant T as Temporal orderPlacementWorkflow
+  participant OA as Order Activities
+  participant IR as Child Workflow inventoryReleaseWorkflow
+  participant S as Stripe
+  participant WH as Backend Stripe Webhook
+  participant L as AWS Lambda (email)
 
-  T->>A: reserveInventory
-  T->>A: initiate or wait payment
+  T->>OA: validateInventoryActivity(items)
+  T->>OA: reserveInventoryActivity(userId, items, orderId)
+  T->>IR: startChild inventoryReleaseWorkflow(waitMinutes=5, reservationIds)
+  Note over IR: sleep(5 minutes) then release if not confirmed
+
+  T->>OA: createOrderActivity(createOrderInput)
+  T->>OA: initiatePaymentActivity(orderId, amount, paymentMethod)
+
+  alt paymentMethod == "cod"
+    Note over T: No Stripe wait needed
+  else card/upi/etc
+    Note over T: Wait up to 5 minutes for signal paymentCompleted(true)
+    S->>WH: payment_intent.succeeded webhook
+    WH->>T: signal paymentCompleted(true) (workflowId="order-<orderId>")
+  end
 
   alt success
-    T->>A: confirmInventory
-    T->>A: confirmOrder
-    T->>A: updatePaymentStatus(succeeded)
-    T->>L: send confirmation email
+    T->>OA: confirmInventoryActivity(reservationIds)
+    T->>OA: confirmOrderActivity(orderId)
+    opt paymentMethod == "cod"
+      T->>OA: updatePaymentStatusByOrderActivity(orderId, "succeeded")
+    end
+    T->>L: sendEmailViaLambdaActivity("confirmation", orderId)
+    T->>IR: cancel child workflow
   else timeout/failure
-    T->>A: releaseInventory
-    T->>A: rollbackOrder(cancelled)
-    T->>A: updatePaymentStatus(cancelled/failed)
-    T->>L: send failure email
+    T->>OA: releaseInventoryActivity(reservationIds)
+    T->>OA: rollbackOrderActivity(orderId)
+    T->>OA: updatePaymentStatusByOrderActivity(orderId, "cancelled")
+    T->>L: sendEmailViaLambdaActivity("payment_failed", orderId)
+    T->>IR: cancel child workflow
   end
 ```
 

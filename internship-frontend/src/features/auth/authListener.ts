@@ -52,7 +52,6 @@ export const startAuthListener = (dispatch: AppDispatch) => {
           query: `
             mutation AuthLogin($firebaseIdToken: String!) {
               authLogin(firebaseIdToken: $firebaseIdToken) {
-                token
                 hasuraToken
                 user {
                   id
@@ -73,7 +72,6 @@ export const startAuthListener = (dispatch: AppDispatch) => {
         const payload = (await res.json()) as {
           data?: {
             authLogin?: {
-              token?: string;
               hasuraToken?: string;
               user?: { emailVerified?: boolean };
             };

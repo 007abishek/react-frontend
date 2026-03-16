@@ -45,6 +45,7 @@ export function setHasuraToken(token: string): void {
   }
   localStorage.setItem(HASURA_TOKEN_KEY, token);
   localStorage.removeItem("hasura_jwt");
+  localStorage.removeItem("backend_jwt");
 }
 //retrieve the token before making api requests
 export async function getHasuraToken(): Promise<string> {
@@ -75,6 +76,7 @@ export async function getHasuraToken(): Promise<string> {
 export function clearHasuraToken(): void {
   localStorage.removeItem("jwt");
   localStorage.removeItem("hasura_jwt");
+  localStorage.removeItem("backend_jwt");
 }
 //function sends graphql queries and mutations to hasura
 export async function hasuraRequest<T>(
