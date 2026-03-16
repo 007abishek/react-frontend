@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { createPortal } from "react-dom";//render ui outside root dom
 import { ToastContext, type ShowToastInput, type ToastApi, type ToastItem, type ToastVariant } from "./ToastContext";
 
 type Props = {
@@ -57,7 +57,7 @@ function variantStyles(variant: ToastVariant): { badge: string; icon: ReactNode 
 }
 
 export default function ToastProvider({ children }: Props) {
-  const timers = useRef<Map<string, number>>(new Map());
+  const timers = useRef<Map<string, number>>(new Map());//timers should not trigger re-renders
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const dismiss = useCallback((id: string) => {
@@ -65,7 +65,7 @@ export default function ToastProvider({ children }: Props) {
     if (handle) window.clearTimeout(handle);
     timers.current.delete(id);
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  }, []);//clear timeout and remove toast from state
 
   const show = useCallback(
     (input: ShowToastInput) => {
@@ -141,6 +141,10 @@ export default function ToastProvider({ children }: Props) {
     </div>
   );
 
+
+
+  
+  //provider for children
   return (
     <ToastContext.Provider value={api}>
       {children}

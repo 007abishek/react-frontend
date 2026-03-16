@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-
+//verify otp page
 import AuthCard from "@/features/auth/components/AuthCard";
 import AuthShell from "@/features/auth/components/AuthShell";
 import { sendOtp, verifyOtp } from "@/features/auth/otpApi";
