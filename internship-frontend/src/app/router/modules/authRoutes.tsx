@@ -2,10 +2,9 @@ import { lazy } from "react";
 import type { RouteObject } from "react-router-dom";
 
 import { withSuspense } from "@/app/router/routeHelpers";
-
+//load components only when needed instead of load everything (lazy)
 const Login = lazy(() => import("@/features/auth/Login"));
 const Signup = lazy(() => import("@/features/auth/Signup"));
-const VerifyOtp = lazy(() => import("@/features/auth/VerifyOtp"));
 
 export const authRoutes: RouteObject[] = [
   {
@@ -16,8 +15,5 @@ export const authRoutes: RouteObject[] = [
     path: "/signup",
     element: withSuspense(<Signup />),
   },
-  {
-    path: "/verify-otp",
-    element: withSuspense(<VerifyOtp />),
-  },
+ 
 ];

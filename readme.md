@@ -88,3 +88,17 @@ npm run dev
 - Stripe webhook signature verification is handled before controller execution.
 - Idempotency cleanup cron runs in backend startup (`src/index.ts`).
 - Frontend uses a single persisted token for Hasura: `localStorage["jwt"]` (set from backend `authLogin.hasuraToken`).
+
+
+## pg admin
+- Start containers: cd internship-backend then docker compose up -d
+-Open pgAdmin: http://localhost:5050
+-Login (from internship-backend/docker-compose.yml:304):
+-Email: admin@admin.com
+-Password: admin
+-Register Server:
+-Host name/address: postgres (docker service name)
+-Port: 5432
+-Username: ecom_user
+-Password: ecom_pass
+-Database: ecom_db

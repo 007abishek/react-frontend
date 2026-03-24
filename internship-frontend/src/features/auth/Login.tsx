@@ -20,6 +20,7 @@ import AuthCard from "@/features/auth/components/AuthCard";
 import AuthShell from "@/features/auth/components/AuthShell";
 import { loginFormSchema } from "@/features/auth/schemas/authSchemas";
 
+
 type AuthProvider = "password" | "google" | "github" | "guest";
 
 type PendingOAuthLink = {
@@ -233,7 +234,7 @@ export default function Login() {
         provider: attemptedProvider,
         credential: pendingCredential,
       });
-    }
+    }//saves it in sessionstorage
 
     let methods: string[] = [];
     try {
@@ -633,3 +634,45 @@ export default function Login() {
     </AuthShell>
   );
 }
+
+
+//1. Login with Google
+//2. Logout
+//3. Try GitHub → error (account-exists-with-different-credential)
+//4. Login with Google again
+//5. Accounts linked (Google + GitHub)
+//6. Logout
+//7. Login with GitHub → works
+/*** 
+//User Login with Google
+        │
+        ▼
+//Firebase Account Created
+//(provider: google)
+        │
+        ▼
+User Logout
+        │
+        ▼
+User tries GitHub
+        │
+        ▼
+Firebase Error
+auth/account-exists-with-different-credential
+        │
+        ▼
+Store GitHub credential
+        │
+        ▼
+Ask user to login with Google
+        │
+        ▼
+User logs in with Google
+        │
+        ▼
+linkWithCredential()
+        │
+        ▼
+Account Linked
+Google + <Github
+*/
