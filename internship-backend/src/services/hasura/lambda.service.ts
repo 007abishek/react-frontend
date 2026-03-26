@@ -1,6 +1,6 @@
 import { sendEmailViaLambdaActivity } from "../../temporal/activities/lambda.activities";
 import type { EmailLambdaType, LambdaEmailPayload } from "./types";
-
+//validates input and triggers a temporal activity that sends an email via aws lambda
 export async function invokeEmailLambdaFromAction(input: {
   type: EmailLambdaType;
   orderId: string;

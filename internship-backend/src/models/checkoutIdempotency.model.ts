@@ -1,5 +1,5 @@
 import db from "../config/knex";
-
+//delete expired idempotency records from the table
 const purgeExpired = async (): Promise<number> => {
   const rows = await db("checkout_idempotency")
     .where("expires_at", "<", db.fn.now())

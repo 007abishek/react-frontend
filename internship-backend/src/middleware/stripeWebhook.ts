@@ -5,7 +5,8 @@ import { stripe, STRIPE_WEBHOOK_SECRET } from "../config/stripe";
 export type StripeWebhookRequest = Request & {
   stripeEvent?: Stripe.Event;
 };
-
+//verifies that incoming webhook requests actually came from stripe and were not tampered
+//sign signature from headers and send
 export function verifyStripeWebhookSignature(
   req: StripeWebhookRequest,
   res: Response,
@@ -18,7 +19,7 @@ export function verifyStripeWebhookSignature(
   }
 
   try {
-    req.stripeEvent = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+    req.stripeEvent = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET); //
     next();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Webhook signature verification failed";

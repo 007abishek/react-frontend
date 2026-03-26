@@ -12,7 +12,7 @@ export const handleAuthLoginAction = async (req: Request, res: Response) => {
     const result = await authenticateFirebaseLogin(firebaseIdToken);
     res.json(result);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Authentication failed";
+    const message = err instanceof Error ? err.message : "Authentication failed";//type guard
     console.error("handleAuthLoginAction error:", message);
     res.status(401).json({ message: "Authentication failed" });
   }

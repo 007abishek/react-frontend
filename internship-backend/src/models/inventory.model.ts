@@ -11,11 +11,13 @@ export interface ReservationRow {
   expires_at: Date;
   created_at: Date;
 }
-
+//check if enough stock is available before reserving
 const checkAvailability = async (
   productId: number,
   requestedQty: number
 ): Promise<{ available: boolean; currentStock: number; reserved: number }> => {
+
+  //select stock from products where id=1 limit 1;
   const product = await db("products")
     .select("stock")
     .where({ id: productId })
@@ -24,7 +26,9 @@ const checkAvailability = async (
   if (!product) {
     return { available: false, currentStock: 0, reserved: 0 };
   }
-
+//SELECT SUM(quantity) AS reserved
+//FROM inventory_reservations
+//WHERE product_id = ? AND status = 'pending';
   const reservedRow = await db("inventory_reservations")
     .where({ product_id: productId, status: "pending" })
     .sum<{ reserved: string | number }>("quantity as reserved")
@@ -50,6 +54,7 @@ const reserve = async (
 ): Promise<{ success: boolean; reservations?: ReservationRow[]; error?: string }> => {
   return db.transaction(async (trx: Knex.Transaction) => {
     const productIds = Array.from(new Set(items.map((item) => item.productId)));
+    //combines quantities per product
     const requestedByProduct = new Map<number, number>();
 
     for (const item of items) {
@@ -59,6 +64,8 @@ const reserve = async (
       );
     }
     //row level locking
+    //prevents 2 users reserving same stock simulatenously
+    //solves race conditions
     const lockedProducts = await trx("products")
       .select("id", "stock")
       .whereIn("id", productIds)
@@ -67,7 +74,7 @@ const reserve = async (
     if (lockedProducts.length !== productIds.length) {
       return { success: false, error: "One or more products do not exist" };
     }
-
+    //fetch current reserved quantities , gets total pending reservations per product
     const reservedRows = (await trx("inventory_reservations")
       .select("product_id")
       .sum("quantity as reserved")
@@ -81,7 +88,7 @@ const reserve = async (
         Number(row.reserved ?? 0),
       ])
     );
-
+    //check availability if not transaction will rollback automatically
     for (const product of lockedProducts) {
       const requestedQty = requestedByProduct.get(product.id) ?? 0;
       const reserved = reservedMap.get(product.id) ?? 0;
@@ -95,7 +102,8 @@ const reserve = async (
         };
       }
     }
-
+    //reservation valid for 5 minutes
+    //return created reservations
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
     const rows = (await trx("inventory_reservations")
       .insert(
@@ -113,7 +121,7 @@ const reserve = async (
     return { success: true, reservations: rows };
   });
 };
-//after payment succeeds
+//after payment succeeds(deduct stock and finalize order)
 const confirm = async (
   reservationIds: number[]
 ): Promise<{ success: boolean; error?: string }> => {

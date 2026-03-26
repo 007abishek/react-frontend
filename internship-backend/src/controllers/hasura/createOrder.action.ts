@@ -15,7 +15,7 @@ type CreateOrderAddressInput = {
 
 export const handleCreateOrderAction = async (req: Request, res: Response) => {
   try {
-    const actionReq = req as HasuraActionRequest;
+    const actionReq = req as HasuraActionRequest;//as is a type assertion
     const session = actionReq.hasuraUser;
     if (!session) {
       res.status(400).json({ message: "A valid Hasura user session is required" });

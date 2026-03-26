@@ -37,7 +37,7 @@ const SHIPPING_ADDRESS_FIELDS = `
   state
   pincode
 `;
-
+//intersection type (combine multiple types into one)
 type OrderDetailRow = OrderSummaryRow & {
   order_items: OrderItem[];
   shipping_address: ShippingAddress[];
@@ -50,6 +50,7 @@ type OrderDetailResult = {
 };
 
 async function enrichOrder(order: OrderSummaryRow): Promise<OrderSummary> {
+  
   const paymentStatus = await getPaymentStatus(order);
   return {
     ...order,
@@ -58,6 +59,8 @@ async function enrichOrder(order: OrderSummaryRow): Promise<OrderSummary> {
 }
 
 async function enrichOrders(orders: OrderSummaryRow[]): Promise<OrderSummary[]> {
+  //multiple orders at once 
+  //runs them in parallel
   return Promise.all(orders.map(enrichOrder));
 }
 

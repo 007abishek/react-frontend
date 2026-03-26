@@ -1,6 +1,12 @@
 import db from "../config/knex";
 
 // Payment row shape from `payments` table
+
+//creating payment records
+//updating payment status
+//fetching payment data
+//handling stripe payment updates
+//cancelling pending payments
 export interface PaymentRow {
   id:                        number;
   order_id:                  number;

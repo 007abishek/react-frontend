@@ -38,7 +38,7 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    /* ✅ Called after successful VERIFIED login */
+    /*  Called after successful VERIFIED login */
     loginSuccess: (state, action: PayloadAction<AuthUser>) => {
       state.user = action.payload;
       state.isAuthenticated = true;
@@ -47,19 +47,19 @@ const authSlice = createSlice({
 
 
   
-    /* 🚪 User logged out or auth invalid */
+    /*  User logged out or auth invalid */
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
       state.loading = false;
     },
 
-    /* 🔍 Auth check finished, no user */
+    /*  Auth check finished, no user */
     authResolved: (state) => {
       state.loading = false;
     },
 
-    /* 🔄 Reset auth state (optional but useful) */
+    /*  Reset auth state (optional but useful) */
     resetAuth: () => initialState,
   },
 });

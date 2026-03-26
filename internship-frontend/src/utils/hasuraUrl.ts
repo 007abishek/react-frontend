@@ -9,6 +9,8 @@ function isLocalHost(hostname: string): boolean {
   );
 }
 
+//api endpoint configuration
+
 export function resolveHasuraUrl(): string {
   const configuredUrl =
     import.meta.env.VITE_HASURA_URL ||

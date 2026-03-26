@@ -87,6 +87,7 @@ export async function authenticateFirebaseLogin(firebaseIdToken: string): Promis
 
   // Resolve existing user by Firebase UID first, then by email to avoid
   // unique-email collisions when provider accounts are linked later.
+  //already linked with email and again login with google
   const existingByUid = await db<UserRow>("users")
     .where({ firebase_uid: decoded.uid })
     .first();

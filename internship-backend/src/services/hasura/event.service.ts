@@ -1,7 +1,7 @@
 import OrderModel from "../../models/order.model";
 import { startWorkflowIdempotent } from "../../temporal/client";
 import { TEMPORAL_TASK_QUEUE } from "../../temporal/config";
-
+//when order is inserted it fetches and validates order data and starts workflow
 export async function processOrderInsertedEvent(orderId: string): Promise<void> {
   const workflowData = await OrderModel.getWorkflowDataByOrderId(orderId);
   if (!workflowData || !Array.isArray(workflowData.items) || workflowData.items.length === 0) {
@@ -9,8 +9,8 @@ export async function processOrderInsertedEvent(orderId: string): Promise<void> 
   }
 
   await startWorkflowIdempotent({
-    workflowType: "orderPlacementWorkflow",
-    taskQueue: TEMPORAL_TASK_QUEUE,
+    workflowType: "orderPlacementWorkflow",//which workflow to run
+    taskQueue: TEMPORAL_TASK_QUEUE,  //which worker will process it
     workflowId: `order-${workflowData.order_id}`,
     args: [
       {

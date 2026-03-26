@@ -28,7 +28,7 @@ export default function TodosPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const hydrated = useRef(false);
+  const hydrated = useRef(false);//prevent saving todos before loading completes otherwise it will overwrite
   const totalTodos = todos.length;
   const completedTodos = todos.filter((todo) => todo.completed).length;
   const progressPercent = totalTodos === 0 ? 0 : Math.round((completedTodos / totalTodos) * 100);
@@ -36,7 +36,7 @@ export default function TodosPage() {
   const startIndex = (currentPage - 1) * PAGE_SIZE;
   const visibleTodos = todos.slice(startIndex, startIndex + PAGE_SIZE);
 
-  // ✅ Load todos after auth resolves
+  //  Load todos after auth resolves
   useEffect(() => {
     if (loading) return;
     if (!user?.uid) return;
@@ -47,7 +47,7 @@ export default function TodosPage() {
     });
   }, [loading, user?.uid, dispatch]);
 
-  // ✅ Save todos after hydration
+  // Save todos after hydration
   useEffect(() => {
     if (!hydrated.current) return;
     if (!user?.uid) return;
@@ -59,10 +59,10 @@ export default function TodosPage() {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
-  }, [currentPage, totalPages]);
+  }, [currentPage, totalPages]); //if deleting items reduces pages , current page automaticcaly adjusts
 
   const handleAdd = () => {
-    // ✅ Zod validation (CORRECT)
+    //  Zod validation (CORRECT)
     const result = todoTextSchema.safeParse(text);
 
     if (!result.success) {
@@ -70,13 +70,13 @@ export default function TodosPage() {
       return;
     }
 
-    // 🔒 Guest restriction
+    //  Guest restriction
     if (isGuest && todos.length >= 3) {
       setShowPrompt(true);
       return;
     }
 
-    // ✅ Use validated + trimmed value
+    //  Use validated + trimmed value
     dispatch(addTodo(result.data));
     setText("");
   };

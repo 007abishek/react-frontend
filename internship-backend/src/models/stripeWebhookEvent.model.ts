@@ -1,7 +1,7 @@
 import db from "../config/knex";
 
 export type StripeWebhookEventStatus = "processing" | "processed" | "failed";
-
+//to make sure each stripe wehbooks is processed safely and only once
 export interface StripeWebhookEventRow {
   id: number;
   event_id: string;

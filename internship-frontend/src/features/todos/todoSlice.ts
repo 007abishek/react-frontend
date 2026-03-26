@@ -20,23 +20,23 @@ const todoSlice = createSlice({
   name: "todos",
   initialState,
   reducers: {
-    // ✅ Used when loading from IndexedDB
+    // Used when loading from IndexedDB
     setTodos: (state, action: PayloadAction<Todo[]>) => {
       state.todos = action.payload;
     },
 
-    // ✅ Add todo with Zod validation (FINAL SAFETY NET)
+    //  Add todo with Zod validation (FINAL SAFETY NET)
     addTodo: (state, action: PayloadAction<string>) => {
       const parsed = todoTextSchema.safeParse(action.payload);
 
       if (!parsed.success) {
-        // ❌ Invalid todo blocked
+        //  Invalid todo blocked
         return;
       }
 
       state.todos.push({
         id: crypto.randomUUID(),
-        text: parsed.data, // ✅ trimmed + validated
+        text: parsed.data, //  trimmed + validated
         completed: false,
       });
     },

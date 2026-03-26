@@ -87,7 +87,7 @@ export default function ToastProvider({ children }: Props) {
       timers.current.set(id, timeoutId);
     },
     [dismiss]
-  );
+  );//stable function references so the system does n't recreate logic unnecessarily
 
   const api: ToastApi = useMemo(
     () => ({

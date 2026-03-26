@@ -1,5 +1,5 @@
 import { resolveHasuraUrl } from "@/utils/hasuraUrl";
-
+//otp mutation
 type GraphQLError = { message?: string };
 type GraphQLEnvelope<TData> = { data?: TData; errors?: GraphQLError[] };
 
@@ -16,6 +16,8 @@ async function postHasura<TData>(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
   });
+
+
 
   let json: GraphQLEnvelope<TData> | null = null;
   try {
